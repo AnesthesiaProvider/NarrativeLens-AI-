@@ -1,0 +1,189 @@
+# ==============================================================================
+# NarrativeLens AI - Project .gitignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Byte-compiled / optimized / DLL files
+# ------------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.dll
+*.dylib
+
+# ------------------------------------------------------------------------------
+# Python Virtual Environments
+# ------------------------------------------------------------------------------
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+bin/
+include/
+lib/
+lib64/
+
+# ------------------------------------------------------------------------------
+# Distribution / packaging
+# ------------------------------------------------------------------------------
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ------------------------------------------------------------------------------
+# Unit test / coverage reports / Linters
+# ------------------------------------------------------------------------------
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+.mypy_cache/
+.ruff_cache/
+
+# ------------------------------------------------------------------------------
+# Node.js / Frontend dependencies & build artifacts
+# ------------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+dist-ssr/
+*.local
+
+# ------------------------------------------------------------------------------
+# Environment variables and credentials
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+*.pfx
+secrets/
+credentials.json
+
+# ------------------------------------------------------------------------------
+# Machine Learning Models, Checkpoints, and Weights
+# ------------------------------------------------------------------------------
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.engine
+*.tflite
+*.h5
+*.ckpt
+checkpoints/
+models/checkpoints/
+models/weights/
+ml/models/weights/
+ml/checkpoints/
+ml/experiments/runs/
+lightning_logs/
+wandb/
+runs/
+.mlflow/
+
+# Hugging Face and Torch cache directories
+.cache/huggingface/
+huggingface_cache/
+torch_cache/
+
+# ------------------------------------------------------------------------------
+# Datasets, Raw Data, and Media Uploads
+# ------------------------------------------------------------------------------
+data/
+datasets/raw/
+datasets/processed/
+ml/datasets/raw/
+ml/datasets/processed/
+uploads/
+backend/uploads/
+temp/
+tmp/
+*.csv.gz
+*.parquet
+*.arrow
+
+# Keep gitkeeps in datasets
+!ml/datasets/.gitkeep
+
+# ------------------------------------------------------------------------------
+# Docker, Databases & Local Storage Volumes
+# ------------------------------------------------------------------------------
+postgres_data/
+redis_data/
+docker_data/
+*.pid
+*.seed
+*.pid.lock
+
+# ------------------------------------------------------------------------------
+# IDEs and Editors
+# ------------------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------------------------------------------
+# Operating System files
+# ------------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------------------------
+logs/
+*.log
+
+# Model cache
+model_cache/
+backend/model_cache/
