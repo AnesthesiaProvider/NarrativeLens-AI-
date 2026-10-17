@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
@@ -127,9 +128,24 @@ class ModelManager:
             if model_key == "hate_speech":
                 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-                checkpoint_path = getattr(settings, "CLASSIFIER_CHECKPOINT_PATH", "")
-                if checkpoint_path and os.path.exists(checkpoint_path):
-                    target_model = checkpoint_path
+                raw_checkpoint_path = getattr(settings, "CLASSIFIER_CHECKPOINT_PATH", "")
+                resolved_checkpoint: Optional[str] = None
+                if raw_checkpoint_path:
+                    candidates = [
+                        Path(raw_checkpoint_path),
+                        Path(raw_checkpoint_path).resolve(),
+                        Path.cwd() / raw_checkpoint_path,
+                        Path(__file__).resolve().parent.parent.parent.parent / raw_checkpoint_path.lstrip("./\\"),
+                        Path.cwd() / "ml" / "checkpoints" / "xlm-roberta-hate-speech",
+                        Path.cwd().parent / "ml" / "checkpoints" / "xlm-roberta-hate-speech",
+                    ]
+                    for candidate in candidates:
+                        if candidate.exists() and (candidate / "config.json").exists():
+                            resolved_checkpoint = str(candidate.resolve())
+                            break
+
+                if resolved_checkpoint:
+                    target_model = resolved_checkpoint
                     logger.info(f"Loading fine-tuned hate speech model from checkpoint '{target_model}' on {self.device_str}...")
                 else:
                     target_model = settings.HATE_SPEECH_MODEL_ID

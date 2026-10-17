@@ -17,7 +17,7 @@ async def test_analyze_text_single(client: AsyncClient):
     assert "predicted_label" in data
     assert "confidence" in data
     assert "class_probabilities" in data
-    assert data["predicted_label"] in ("neutral", "safe", "hate", "nothate")
+    assert data["predicted_label"] in ("normal", "offensive", "hate", "neutral", "safe", "nothate")
     assert "explanation" in data
 
 

@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     HATE_SPEECH_MODEL_ID: str = "FacebookAI/xlm-roberta-base"
     EMBEDDING_MODEL_ID: str = "BAAI/bge-m3"
     MULTIMODAL_MODEL_ID: str = "Qwen/Qwen3-VL-4B-Instruct"
-    CLASSIFIER_CHECKPOINT_PATH: str = ""
+    CLASSIFIER_CHECKPOINT_PATH: str = "ml/checkpoints/xlm-roberta-hate-speech"
     CLASSIFIER_NUM_LABELS: int = 3
     CLASSIFIER_LABELS: List[str] = ["normal", "offensive", "hate"]
     BATCH_SIZE: int = 32

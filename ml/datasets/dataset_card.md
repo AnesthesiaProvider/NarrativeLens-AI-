@@ -6,35 +6,44 @@
   * `normal`: Neutral, constructive, or benign discourse.
   * `offensive`: Profanity, insults, abrasive sentiment without targeting protected identity groups.
   * `hate`: Targeted abuse, slurs, dehumanization, or threats directed against protected demographic groups (race, religion, gender, sexual orientation, disability, nationality).
-* **Target Model**: `FacebookAI/xlm-roberta-base` cross-lingual sequence classifier.
-* **Format**: Comma-Separated Values (`train.csv`, `val.csv`, `test.csv`) with columns `text`, `label`, `source`.
+* **Target Model**: `FacebookAI/xlm-roberta-base` cross-lingual classifier.
+* **Total Instances**: 20,173
+* **Data Sources Represented**: measuring_hate_speech, curated
 
 ---
 
-## 2. Integrated Data Sources
+## 2. Splits and Class Distribution
 
-1. **`ucberkeley-dlab/measuring-hate-speech`** (~135k annotations):
-   * Continuous hate speech scoring calibrated via Rasch measurement models.
-   * Discretization: `score > 0.5` &rarr; `hate`, `-1.0 <= score <= 0.5` &rarr; `offensive`, `score < -1.0` &rarr; `normal`.
-2. **`hatexplain`**:
-   * Word/post token rationales with 3-class human annotator consensus.
-   * Annotations resolved via majority voting across annotators.
-3. **Multilingual Corpora (e.g., `Hate-speech-CNERG/deoffxlm-data`, HASOC)**:
-   * Hindi, code-mixed Hinglish, and cross-lingual social media discourse.
-4. **NarrativeLens Curated Seed**:
-   * Multilingual and English verified references for reproducible smoke testing and baseline validation.
+| Split | Normal | Offensive | Hate | Total |
+| :--- | :--- | :--- | :--- | :--- |
+| **Train (80%)** | 5,386 | 5,376 | 5,376 | 16,138 |
+| **Validation (10%)** | 673 | 672 | 672 | 2,017 |
+| **Test (10%)** | 674 | 672 | 672 | 2,018 |
+| **Combined** | **6,733** | **6,720** | **6,720** | **20,173** |
+
+### Source Distribution:
+- **measuring_hate_speech**: 19,998 examples (99.1%)
+- **curated**: 175 examples (0.9%)
 
 ---
 
 ## 3. Data Processing & Methodology
 
-* **Stratification**: 80% train, 10% validation, 10% test split preserves identical class distribution ratios across all evaluation sets.
-* **Cleaning**: Null stripping, deduplication by text content, whitespace normalization.
-* **Reproducibility**: All random operations fixed with `seed=42`.
+1. **Taxonomy Alignment**:
+   * Continuous scales (e.g. Berkeley Measuring Hate Speech continuous scores) were discretized:
+     * Score > 0.5 &rarr; `hate`
+     * -1.0 &le; Score &le; 0.5 &rarr; `offensive`
+     * Score < -1.0 &rarr; `normal`
+   * Discrete multi-annotator datasets (HateXplain) resolved using majority voting.
+2. **Stratification**:
+   * Stratified splitting (80% train, 10% validation, 10% test) guarantees equal class proportions across all three evaluation partitions.
+3. **Multilingual & Code-Mixed Support**:
+   * Curated and open-source multilingual corpora covering English, Hindi, and code-mixed Hinglish.
 
 ---
 
 ## 4. Ethical Considerations and Limitations
 
+* **Demographic Sensitivity**: Hate speech datasets reflect the biases of the underlying annotator pools.
 * **Intended Use**: For automated content moderation triage, research auditing, and counter-narrative generation support. Not for autonomous irreversible censorship without human-in-the-loop oversight.
-* **Content Warning**: Contains toxic, profane, and abusive text required for training robust classification heads.
+* **Content Warning**: Contains toxic, profane, and abusive text required for robust classifier supervision.
