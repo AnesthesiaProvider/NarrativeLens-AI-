@@ -176,6 +176,10 @@ docker_data/
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
 desktop.ini
 
 # ------------------------------------------------------------------------------

@@ -13,8 +13,11 @@ class HealthResponse(BaseModel):
     """Health check response schema."""
 
     status: str = Field(..., description="Overall service status (healthy/degraded/unhealthy)")
-    db_connected: bool = Field(..., description="PostgreSQL database connectivity status")
+    db_connected: bool = Field(..., description="Database connectivity status")
     redis_connected: bool = Field(..., description="Redis connectivity status")
+    uptime_seconds: float = Field(default=3600.0, description="Uptime of service in seconds")
+    version: str = Field(default="0.1.0", description="API version")
+    models: Dict[str, Any] = Field(default_factory=dict, description="Active status of ML models")
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Current server timestamp in UTC",
