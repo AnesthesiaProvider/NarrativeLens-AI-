@@ -65,7 +65,8 @@ export const CoordinationAnalysisPage: React.FC = () => {
     MOCK_INDICATORS[0]
   )
 
-  const activeInv = investigations?.find((i) => i.id === selectedInvId) || investigations?.[0]
+  const invList = Array.isArray(investigations) ? investigations : []
+  const activeInv = invList.find((i) => i.id === selectedInvId) || invList[0]
 
   return (
     <div className="space-y-6 pb-12">

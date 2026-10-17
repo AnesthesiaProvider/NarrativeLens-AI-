@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 
 import { ThemeProvider } from '@/context/ThemeContext'
 import { MainLayout } from '@/layouts/MainLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 import { OverviewPage } from '@/pages/OverviewPage'
 import { InvestigationsPage } from '@/pages/InvestigationsPage'
@@ -34,27 +35,29 @@ export const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<OverviewPage />} />
-              <Route path="overview" element={<Navigate to="/" replace />} />
-              <Route path="investigations" element={<InvestigationsPage />} />
-              <Route path="investigations/new" element={<NewInvestigationPage />} />
-              <Route path="investigations/:id" element={<InvestigationDetailPage />} />
-              <Route path="narratives" element={<NarrativeExplorerPage />} />
-              <Route path="analysis/text" element={<HateSpeechAnalysisPage />} />
-              <Route path="analysis/meme" element={<MemeAnalysisPage />} />
-              <Route path="coordination" element={<CoordinationAnalysisPage />} />
-              <Route path="evidence" element={<EvidenceExplorerPage />} />
-              <Route path="evaluation" element={<ModelEvaluationPage />} />
-              <Route path="feedback" element={<FeedbackPage />} />
-              <Route path="datasets" element={<DatasetManagementPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <ErrorBoundary>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<OverviewPage />} />
+                <Route path="overview" element={<Navigate to="/" replace />} />
+                <Route path="investigations" element={<InvestigationsPage />} />
+                <Route path="investigations/new" element={<NewInvestigationPage />} />
+                <Route path="investigations/:id" element={<InvestigationDetailPage />} />
+                <Route path="narratives" element={<NarrativeExplorerPage />} />
+                <Route path="analysis/text" element={<HateSpeechAnalysisPage />} />
+                <Route path="analysis/meme" element={<MemeAnalysisPage />} />
+                <Route path="coordination" element={<CoordinationAnalysisPage />} />
+                <Route path="evidence" element={<EvidenceExplorerPage />} />
+                <Route path="evaluation" element={<ModelEvaluationPage />} />
+                <Route path="feedback" element={<FeedbackPage />} />
+                <Route path="datasets" element={<DatasetManagementPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </ErrorBoundary>
       </ThemeProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

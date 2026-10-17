@@ -26,14 +26,15 @@ export const OverviewPage: React.FC = () => {
   const { data: health, isLoading: isHealthLoading, error: healthError, refetch: refetchHealth } = useHealth()
   const { data: investigations, isLoading: isInvLoading, error: invError, refetch: refetchInv } = useInvestigations()
 
-  const totalInvestigations = investigations?.length ?? health?.total_investigations ?? 0
+  const invList = Array.isArray(investigations) ? investigations : []
+  const totalInvestigations = invList.length || health?.total_investigations || 0
   const totalDocuments = health?.total_documents ?? 0
   const totalSources = health?.total_sources ?? 0
   const itemsNeedingReview = health?.items_needing_review ?? 0
   const narrativeClusters = health?.narrative_clusters ?? 0
   const modelStatus = health?.status ?? 'healthy'
 
-  const recentInvestigations = (investigations || []).slice(0, 5)
+  const recentInvestigations = invList.slice(0, 5)
 
   return (
     <div className="space-y-8 pb-10">

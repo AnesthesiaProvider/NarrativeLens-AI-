@@ -14,11 +14,22 @@ export function useInvestigations() {
   return useQuery({
     queryKey: INVESTIGATION_KEYS.lists(),
     queryFn: async () => {
+      const unpack = (res: any): Investigation[] => {
+        if (!res) return []
+        if (Array.isArray(res)) return res
+        if (Array.isArray(res.items)) return res.items
+        return []
+      }
       try {
-        return await api.get<Investigation[]>('/investigations')
+        const res = await api.get<any>('/investigations')
+        return unpack(res)
       } catch (err) {
-        // Fallback endpoint if trailing slash is preferred by FastAPI
-        return await api.get<Investigation[]>('/investigations/')
+        try {
+          const res = await api.get<any>('/investigations/')
+          return unpack(res)
+        } catch {
+          return []
+        }
       }
     },
   })
@@ -77,7 +88,23 @@ export function useInvestigationDocuments(id: string | undefined) {
     queryKey: INVESTIGATION_KEYS.documents(id || ''),
     queryFn: async () => {
       if (!id) return []
-      return await api.get<Document[]>(`/investigations/${id}/documents`)
+      const unpack = (res: any): Document[] => {
+        if (!res) return []
+        if (Array.isArray(res)) return res
+        if (Array.isArray(res.items)) return res.items
+        return []
+      }
+      try {
+        const res = await api.get<any>(`/investigations/${id}/documents`)
+        return unpack(res)
+      } catch {
+        try {
+          const res = await api.get<any>(`/documents?investigation_id=${id}`)
+          return unpack(res)
+        } catch {
+          return []
+        }
+      }
     },
     enabled: Boolean(id),
   })
@@ -88,7 +115,23 @@ export function useInvestigationNarratives(id: string | undefined) {
     queryKey: INVESTIGATION_KEYS.narratives(id || ''),
     queryFn: async () => {
       if (!id) return []
-      return await api.get<NarrativeCluster[]>(`/investigations/${id}/narratives`)
+      const unpack = (res: any): NarrativeCluster[] => {
+        if (!res) return []
+        if (Array.isArray(res)) return res
+        if (Array.isArray(res.items)) return res.items
+        return []
+      }
+      try {
+        const res = await api.get<any>(`/investigations/${id}/narratives`)
+        return unpack(res)
+      } catch {
+        try {
+          const res = await api.get<any>(`/narratives?investigation_id=${id}`)
+          return unpack(res)
+        } catch {
+          return []
+        }
+      }
     },
     enabled: Boolean(id),
   })

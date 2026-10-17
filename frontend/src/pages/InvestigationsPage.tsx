@@ -27,8 +27,8 @@ export const InvestigationsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card')
 
   const filtered = useMemo(() => {
-    if (!investigations) return []
-    return investigations.filter((inv) => {
+    const list = Array.isArray(investigations) ? investigations : []
+    return list.filter((inv) => {
       const matchesSearch =
         inv.title.toLowerCase().includes(search.toLowerCase()) ||
         inv.description?.toLowerCase().includes(search.toLowerCase()) ||
