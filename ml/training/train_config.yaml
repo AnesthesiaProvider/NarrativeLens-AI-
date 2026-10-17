@@ -1,0 +1,26 @@
+model:
+  name: FacebookAI/xlm-roberta-base
+  num_labels: 3
+  max_length: 128
+
+training:
+  epochs: 3
+  batch_size: 16
+  learning_rate: 2e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  gradient_accumulation_steps: 2
+  fp16: true
+  seed: 42
+  early_stopping_patience: 2
+
+data:
+  train_path: ml/datasets/train.csv
+  val_path: ml/datasets/val.csv
+  test_path: ml/datasets/test.csv
+  text_column: text
+  label_column: label
+
+output:
+  dir: ml/checkpoints/xlm-roberta-hate-speech
+  save_total_limit: 3

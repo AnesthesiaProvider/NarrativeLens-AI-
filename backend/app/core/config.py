@@ -55,9 +55,12 @@ class Settings(BaseSettings):
     # Machine Learning & AI Models
     DEVICE: str = "auto"
     MODEL_CACHE_DIR: str = "./model_cache"
-    HATE_SPEECH_MODEL_ID: str = "facebook/roberta-hate-speech-dynabench-r4-target"
-    EMBEDDING_MODEL_ID: str = "sentence-transformers/all-MiniLM-L6-v2"
-    MULTIMODAL_MODEL_ID: str = "openai/clip-vit-base-patch32"
+    HATE_SPEECH_MODEL_ID: str = "FacebookAI/xlm-roberta-base"
+    EMBEDDING_MODEL_ID: str = "BAAI/bge-m3"
+    MULTIMODAL_MODEL_ID: str = "Qwen/Qwen3-VL-4B-Instruct"
+    CLASSIFIER_CHECKPOINT_PATH: str = ""
+    CLASSIFIER_NUM_LABELS: int = 3
+    CLASSIFIER_LABELS: List[str] = ["normal", "offensive", "hate"]
     BATCH_SIZE: int = 32
     MAX_SEQUENCE_LENGTH: int = 512
 

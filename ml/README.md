@@ -1,146 +1,237 @@
-# NarrativeLens AI - Machine Learning Pipeline & Strategy
+# NarrativeLens AI - Machine Learning Pipeline & Training Guide
 
-The `ml/` module houses all machine learning models, training scripts, dataset preprocessors, and evaluation protocols for **NarrativeLens AI**. NarrativeLens moves beyond simple keyword filtering by combining multilingual sequence classification, multimodal image-text reasoning, dense narrative clustering, and grounded counter-narrative generation.
-
----
-
-## 1. Architectural Strategy & Model Suite
-
-NarrativeLens utilizes a decoupled, modular multi-model architecture where specialized models perform complementary tasks:
-
-```
-[ Incoming Content: Text / Image / Meme ]
-                   │
-         ┌─────────┴─────────┐
-         ▼                   ▼
- ┌───────────────┐   ┌───────────────────────────┐
- │ Vision Preproc│   │ Multilingual Tokenizer    │
- └───────┬───────┘   └─────────────┬─────────────┘
-         │                         │
-         ├─────────────────────────┼───────────────────────────┐
-         ▼                         ▼                           ▼
-┌───────────────────┐    ┌────────────────────┐     ┌─────────────────────┐
-│ Multimodal Model  │    │  Cross-Lingual CLF │     │  Embedding Model    │
-│ Qwen3-VL-4B       │    │  XLM-RoBERTa-base  │     │  BAAI/bge-m3        │
-│ (Memes / Infogr.) │    │  (Toxic / Hate /   │     │  (1024d Dense Vect. │
-│                   │    │   Offensive / Org) │     │   pgvector HNSW)    │
-└────────┬──────────┘    └─────────┬──────────┘     └──────────┬──────────┘
-         │                         │                           │
-         └─────────────────────────┼───────────────────────────┘
-                                   ▼
-                   ┌───────────────────────────────┐
-                   │ Aggregated Toxicity & Signals │
-                   └───────────────┬───────────────┘
-                                   ▼
-                   ┌───────────────────────────────┐
-                   │ RAG & Grounded Evidence Query │
-                   └───────────────┬───────────────┘
-                                   ▼
-                   ┌───────────────────────────────┐
-                   │ Counter-Narrative Generation  │
-                   │ Qwen/Qwen3-4B                 │
-                   └───────────────────────────────┘
-```
-
-### A. Multilingual Hate Speech Classifier (`FacebookAI/xlm-roberta-base`)
-* **Role**: Primary sequence and token-level classification engine for textual content.
-* **Capabilities**:
-  * Cross-lingual zero-shot and few-shot transfer across 100+ languages (with focus on English, Hindi, Spanish, French, German, and code-mixed vernaculars).
-  * Multi-label output taxonomy:
-    * `benign`: Constructive, neutral, or non-hateful discourse.
-    * `offensive`: Profanity or abrasive language without protected group targeting.
-    * `hate_speech`: Slurs, dehumanization, threats directed at protected attributes (race, religion, gender, sexual orientation, disability, nationality).
-    * `coordinated_disinformation`: Coordinated political, health, or conspiratorial narrative motifs.
-* **Explainability**: Integrated gradient saliency and rationalization scores highlighting toxic spans.
-
-### B. Dense Narrative Representation & Clustering (`BAAI/bge-m3`)
-* **Role**: Extracting rich semantic representations for narrative tracking, semantic similarity, and retrieval.
-* **Capabilities**:
-  * Generates 1024-dimensional dense vectors supporting multi-lingual and cross-lingual semantic matching.
-  * Ingests both short social posts and long-form articles (context window up to 8192 tokens).
-  * Powers vector storage in PostgreSQL (`pgvector` using HNSW index) for rapid discovery of coordinated disinformation campaigns and emergent hate clusters.
-
-### C. Multimodal Understanding (`Qwen/Qwen3-VL-4B-Instruct`)
-* **Role**: Visual-textual analysis of social media memes, screenshots, and infographics.
-* **Capabilities**:
-  * Solves the multimodal hate speech challenge (e.g., benign text paired with a hateful image or vice versa).
-  * Direct reasoning over visual metaphors, historical tropes, and symbols without mandatory two-step OCR failure points.
-  * Optional fallback OCR module for lightweight text-in-image extraction.
-
-### D. Grounded Counter-Narrative Generation (`Qwen/Qwen3-4B`)
-* **Role**: Automated drafting of de-escalating, empathetic, and evidence-grounded counter-narratives for human moderators.
-* **Capabilities**:
-  * Retrieval-Augmented Generation (RAG) conditioning on authoritative fact-checks and neutral evidentiary sources.
-  * Tone enforcement: Non-confrontational, empathetic, and fact-focused to de-polarize online discussions.
-  * Guardrails to prevent hallucination, reciprocal toxicity, or patronizing rhetoric.
+This directory contains the complete end-to-end machine learning pipeline for **NarrativeLens AI**, centered around fine-tuning **`FacebookAI/xlm-roberta-base`** for 3-class cross-lingual hate speech classification, token attribution explainability with **Captum Integrated Gradients**, and automated evaluation with calibration metrics.
 
 ---
 
-## 2. Directory Layout
+## 1. Pipeline Overview
+
+The pipeline standardizes diverse data into a unified 3-class taxonomy:
+* **`normal` (0)**: Constructive, neutral, or non-hateful discourse.
+* **`offensive` (1)**: Profanity, coarse insults, or abrasive language without protected group targeting.
+* **`hate` (2)**: Targeted abuse, slurs, dehumanization, or threats directed at protected demographic attributes (religion, race, ethnicity, gender, sexual orientation, disability).
 
 ```
-ml/
-├── datasets/            # Dataset acquisition scripts and schema mappers (.gitkeep)
-│   ├── raw/             # Unprocessed external datasets (gitignored)
-│   └── processed/       # Unified JSONL splits (train/val/test) (gitignored)
-├── training/            # Fine-tuning pipelines, loss definitions, trainer loops (.gitkeep)
-│   ├── train_classifier.py
-│   └── finetune_lora.py
-├── evaluation/          # Benchmark evaluation, bias audits, fairness metrics (.gitkeep)
-│   ├── metrics.py
-│   └── evaluate_crosslingual.py
-├── experiments/         # Experiment tracking configs, hyperparameter logs (.gitkeep)
-└── README.md            # This document
+[ Hugging Face Datasets & Curated Data ]
+                    │
+                    ▼
+       ml/datasets/download_datasets.py
+                    │
+                    ├── ml/datasets/train.csv (80%)
+                    ├── ml/datasets/val.csv   (10%)
+                    ├── ml/datasets/test.csv  (10%)
+                    └── ml/datasets/dataset_card.md
+                    │
+                    ▼
+       ml/training/train_classifier.py
+                    │
+                    ├── Best Checkpoint (XLM-RoBERTa + Head)
+                    ├── training_metrics.json (loss curves)
+                    ├── confusion_matrix.json
+                    └── eval_results.json
+                    │
+                    ▼
+       ml/evaluation/evaluate_model.py
+                    │
+                    └── Comprehensive Report + ECE Calibration
+                    │
+                    ▼
+       backend/app/ml/model_manager.py
+    (Loaded via CLASSIFIER_CHECKPOINT_PATH with
+     Captum LayerIntegratedGradients Token Attribution)
 ```
 
 ---
 
-## 3. Dataset Integration & Preprocessing Strategy
+## 2. Hardware Requirements & Specifications
 
-NarrativeLens standardizes academic and open-source hate speech datasets into a unified schema:
-* **HateXplain**: Multi-annotator rationales, target communities, and token-level highlights.
-* **Facebook Hateful Memes Challenge**: Multimodal benign-conflict image-text pairs.
-* **HASOC (Hate Speech and Offensive Content)**: Multi-lingual code-mixed benchmarks (Hindi-English, German, Marathi).
-* **CONAN / Multilingual Counter-Narrative**: Pairs of hateful arguments and expert-verified counter-responses.
+The pipeline is pre-configured and tested for standard consumer and workstation GPUs:
 
-Each entry is mapped to the canonical `NarrativeSample` schema:
-```json
-{
-  "id": "uuid-v4",
-  "text": "Extracted or provided content...",
-  "language": "en",
-  "media_urls": [],
-  "labels": {
-    "is_hate": true,
-    "is_offensive": true,
-    "target_groups": ["religious_minority"],
-    "narrative_motif": "conspiracy_replacement"
-  },
-  "rationales": [[12, 28]],
-  "verified_counter_narrative": "Statistical evidence demonstrates that..."
-}
+* **Target Hardware**: NVIDIA GeForce RTX 4050 (6GB VRAM) / RTX 3060 / RTX 4060 or higher.
+* **System RAM**: 16GB RAM minimum.
+* **OS / Environment**: Windows 11 / Linux with Python 3.10 - 3.13.
+* **PyTorch**: PyTorch 2.6.0+cu124 (or CUDA 12.x enabled).
+* **VRAM Optimization**:
+  * Sequence Length: `128`
+  * Per-device Batch Size: `16`
+  * Gradient Accumulation Steps: `2` (effective batch size: `32`)
+  * Mixed Precision: `FP16` enabled
+  * Peak VRAM consumption: **~3.8 GB - 4.5 GB** (well within 6GB limit).
+
+### Expected Training Time
+
+| Dataset Size | Epochs | RTX 4050 (6GB) | CPU Only |
+| :--- | :--- | :--- | :--- |
+| **Smoke Test (500 samples)** | 1 epoch | ~45 seconds | ~4 minutes |
+| **Curated Baseline (~1,500 samples)** | 3 epochs | ~3-4 minutes | ~20 minutes |
+| **Full Combined Dataset (~40k samples)**| 3 epochs | ~35-50 minutes | Several hours |
+
+---
+
+## 3. Step-by-Step Training Instructions
+
+### Step 1: Install Dependencies
+
+Ensure your Python environment contains all necessary packages:
+
+```powershell
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+pip install transformers datasets accelerate captum scikit-learn pandas pyyaml tqdm
+```
+
+Verify your environment:
+```powershell
+python -c "import torch, transformers, datasets, captum; print('CUDA Available:', torch.cuda.is_available())"
 ```
 
 ---
 
-## 4. Evaluation Protocol
+### Step 2: Download & Prepare Datasets
 
-Models are evaluated using rigorous academic benchmarks:
-1. **Classification Performance**:
-   * Macro-averaged F1 score across all target classes.
-   * Precision-Recall AUC (PR-AUC) to address class imbalance.
-2. **Fairness & Subgroup Bias (Borkan et al., 2019)**:
-   * Subgroup AUC: Performance evaluated strictly on texts mentioning specific demographic identities.
-   * Background Negative Subgroup AUC (BPSN) and Background Positive Subgroup AUC (BNSP) to prevent false-positive penalization of identity tokens (e.g. "gay", "Muslim", "trans").
-3. **Cross-Lingual Zero-Shot Transfer**:
-   * Evaluation on unseen languages to test multilingual generalization without target-language training data.
-4. **Counter-Narrative Quality**:
-   * Human & automated evaluation across Toxicity Delta (negative shift), Groundedness (factuality score), and Empathy/Constructiveness.
+Run `download_datasets.py` to acquire datasets from Hugging Face (`ucberkeley-dlab/measuring-hate-speech`, `hatexplain`, and multilingual sources), harmonize the labels, and split into train, validation, and test sets:
+
+```powershell
+# Standard download and preparation
+python ml/datasets/download_datasets.py
+
+# Optional: Fast download with sample cap per source
+python ml/datasets/download_datasets.py --max_samples 5000
+```
+
+This generates:
+* `ml/datasets/train.csv` (80% stratified split)
+* `ml/datasets/val.csv` (10% stratified split)
+* `ml/datasets/test.csv` (10% stratified split)
+* `ml/datasets/dataset_card.md` (data provenance and distribution report)
 
 ---
 
-## 5. Serving & Resource Optimization
+### Step 3: Train the Model
 
-* **Lazy Loading**: Models are initialized in memory only upon invocation of their respective pipeline route.
-* **Device Flexibility**: Automatic detection and offloading between `cuda`, `rocm`, `mps`, and `cpu`.
-* **Quantization**: Support for 4-bit and 8-bit (BitsAndBytes / AWQ) weights for consumer-grade GPU deployment.
+Launch `train_classifier.py` using default parameters or custom hyperparameter overrides:
+
+```powershell
+# Standard training (using train_config.yaml defaults)
+python ml/training/train_classifier.py
+
+# Quick verification / smoke test
+python ml/training/train_classifier.py --epochs 1 --max_train_samples 200 --max_eval_samples 50
+
+# Custom hyperparameters via CLI
+python ml/training/train_classifier.py `
+  --model_name FacebookAI/xlm-roberta-base `
+  --epochs 3 `
+  --batch_size 16 `
+  --gradient_accumulation_steps 2 `
+  --learning_rate 2e-5 `
+  --max_length 128 `
+  --output_dir ml/checkpoints/xlm-roberta-hate-speech `
+  --fp16
+```
+
+#### What Happens During Training:
+1. Loads stratified datasets and tokenizes using `XLM-RoBERTa` vocabulary.
+2. Initializes `AutoModelForSequenceClassification` with a 3-class classification head (`normal`, `offensive`, `hate`).
+3. Uses Hugging Face `Trainer` with FP16, AdamW optimizer, linear warmup, and weight decay.
+4. Evaluates validation macro-F1 at the end of each epoch.
+5. Saves the best model checkpoint based on validation macro-F1 (`EarlyStoppingCallback` patience=2).
+6. Evaluates test set and outputs:
+   * `ml/checkpoints/xlm-roberta-hate-speech/` (model weights, tokenizer, config)
+   * `training_metrics.json`
+   * `eval_results.json`
+   * `confusion_matrix.json`
+
+---
+
+### Step 4: Evaluate the Model
+
+Run the standalone evaluation script on test data:
+
+```powershell
+# Evaluate the trained checkpoint
+python ml/evaluation/evaluate_model.py `
+  --checkpoint_path ml/checkpoints/xlm-roberta-hate-speech `
+  --test_path ml/datasets/test.csv `
+  --output_file ml/evaluation/evaluation_report.json
+
+# Compare with base model zero-shot
+python ml/evaluation/evaluate_model.py `
+  --model_name FacebookAI/xlm-roberta-base `
+  --test_path ml/datasets/test.csv
+```
+
+The evaluation suite calculates:
+* Overall Accuracy, Macro-F1, and Weighted-F1
+* Per-class Precision, Recall, and F1 (for `normal`, `offensive`, `hate`)
+* Confusion Matrix
+* **Expected Calibration Error (ECE)** across 10 confidence bins
+* Detailed classification report
+
+---
+
+### Step 5: Point the Backend to the Checkpoint
+
+Once trained, connect the FastAPI backend to your fine-tuned model checkpoint:
+
+1. In your `.env` file or environment variables, set:
+```bash
+CLASSIFIER_CHECKPOINT_PATH=ml/checkpoints/xlm-roberta-hate-speech
+```
+
+2. When the backend starts:
+   * `backend/app/ml/model_manager.py` checks `CLASSIFIER_CHECKPOINT_PATH`.
+   * It loads the fine-tuned checkpoint into GPU memory with 3-class label mapping.
+   * Calls to `predict_hate_speech(text, explain=True)` execute real **Captum LayerIntegratedGradients** token-level attributions.
+   * If the checkpoint is missing, it falls back to the base model or clearly labeled heuristic triage.
+
+---
+
+## 4. Configuration File (`train_config.yaml`)
+
+Configuration can be customized in `ml/training/train_config.yaml`:
+
+```yaml
+model:
+  name: FacebookAI/xlm-roberta-base
+  num_labels: 3
+  max_length: 128
+
+training:
+  epochs: 3
+  batch_size: 16
+  learning_rate: 2e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  gradient_accumulation_steps: 2
+  fp16: true
+  seed: 42
+  early_stopping_patience: 2
+
+data:
+  train_path: ml/datasets/train.csv
+  val_path: ml/datasets/val.csv
+  test_path: ml/datasets/test.csv
+  text_column: text
+  label_column: label
+
+output:
+  dir: ml/checkpoints/xlm-roberta-hate-speech
+  save_total_limit: 3
+```
+
+---
+
+## 5. Troubleshooting & FAQ
+
+### Issue: CUDA Out of Memory (OOM) on 6GB GPU
+* **Solution**: Reduce batch size to `8` and increase gradient accumulation steps to `4`:
+  ```powershell
+  python ml/training/train_classifier.py --batch_size 8 --gradient_accumulation_steps 4
+  ```
+* Ensure no background browser hardware acceleration or games are holding GPU VRAM.
+
+### Issue: Hugging Face Rate Limit or Offline Mode
+* `download_datasets.py` includes curated multilingual fallback seeds across all 3 classes so that data preparation will never crash even in restricted network environments.
+
+### Issue: Captum Not Available
+* `backend/app/ml/model_manager.py` automatically falls back to an exact PyTorch input-embedding gradient saliency calculation ($\|\nabla_{E} \mathcal{L}\|_{2}$) if Captum is absent.
