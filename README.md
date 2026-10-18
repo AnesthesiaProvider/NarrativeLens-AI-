@@ -21,12 +21,26 @@ Rather than treating toxic language as isolated keywords or purely binary classi
 
 ## ✨ Key Features
 
-- 🌐 **Multilingual Cross-Lingual Detection**: Fine-tuned on `FacebookAI/xlm-roberta-base` for zero-shot and few-shot classification across 100+ languages, including code-mixed vernaculars.
-- 🖼️ **Multimodal Meme & Visual Analysis**: Direct visual-textual reasoning via `Qwen/Qwen3-VL-4B-Instruct` to detect benign-conflict memes, visual dog-whistles, and hateful iconography.
+- 🌐 **Multilingual Cross-Lingual Detection**: Fine-tuned on `FacebookAI/xlm-roberta-base` on 16,138 real annotated samples with multi-class taxonomy (`Hate Speech`, `Offensive`, `Neutral`).
+- 🖼️ **GPU-Accelerated Multimodal Meme OCR**: Integrated `EasyOCR` GPU pipeline extracting text overlays from memes and fusing with contextual hate classification and vision safety ratings.
+- 🎯 **Captum Integrated Gradients Explainability**: Token-level saliency attribution quantifying exact lexical triggers with mathematical gradients.
 - 🧬 **Dense Narrative Clustering**: High-dimensional semantic embeddings via `BAAI/bge-m3` combined with PostgreSQL `pgvector` HNSW indexing to uncover emergent narrative clusters and coordinated disinformation campaigns.
-- 💡 **Grounded Counter-Narrative Generation**: Retrieval-augmented generation (RAG) powered by `Qwen/Qwen3-4B`, synthesizing evidence-backed, empathetic, and de-escalating responses to defuse toxic rhetoric.
-- 🎯 **Explainability & Attribution**: Token-level saliency and rationales highlighting specific linguistic spans responsible for toxicity classifications.
+- 💡 **Grounded Counter-Narrative Generation**: Retrieval-augmented generation (RAG) synthesizing evidence-backed, empathetic responses to defuse toxic rhetoric.
 - 🛡️ **Responsible AI & Governance**: Built-in PII scrubbing, annotator welfare safeguards, subgroup bias audits (BPSN/BNSP), and content-blurring moderator controls.
+
+---
+
+## 📊 Model Training & Benchmarks
+
+| Metric | Score / Value |
+|---|---|
+| **Base Backbone** | `FacebookAI/xlm-roberta-base` (278M parameters) |
+| **Training Dataset** | 16,138 stratified multi-class samples (`measuring-hate-speech` + `hatexplain`) |
+| **Hardware** | NVIDIA GeForce RTX 4050 Laptop GPU (6GB VRAM) with FP16 Mixed Precision |
+| **Macro-F1 Score** | `0.6247` across 3 classes |
+| **Expected Calibration Error (ECE)** | `0.0713` (Well-calibrated probability distributions) |
+| **Per-Class Metrics** | Normal: F1 `0.7853`, Offensive: F1 `0.4504`, Hate Speech: F1 `0.6385` |
+| **Checkpoint Path** | `ml/checkpoints/xlm-roberta-hate-speech` |
 
 ---
 
@@ -36,16 +50,18 @@ Rather than treating toxic language as isolated keywords or purely binary classi
 flowchart TD
     subgraph Ingestion ["1. Ingestion & Preprocessing"]
         Input["Raw Input\n(Text, Image, Meme)"] --> Clean["Sanitizer & PII Scrubber"]
+        Input --> OCR["EasyOCR (CUDA GPU)\nText Region & BBox Extraction"]
     end
 
     subgraph ML ["2. Machine Learning Inference Engine"]
-        Clean --> XLM["XLM-RoBERTa-base\n(Multilingual Classifier)"]
-        Clean --> VL["Qwen3-VL-4B\n(Multimodal Reasoner)"]
+        Clean --> XLM["Fine-Tuned XLM-RoBERTa\n(3-Class Classifier)"]
+        OCR --> XLM
+        XLM --> Captum["Captum Integrated Gradients\n(Token Saliency Attribution)"]
         Clean --> BGE["BAAI/bge-m3\n(Dense 1024d Embeddings)"]
     end
 
     subgraph Persistence ["3. Persistence & Search Layer"]
-        BGE --> PG[("PostgreSQL 16 + pgvector\n(HNSW Vector Index & Relational DB)")]
+        BGE --> PG[("PostgreSQL 16 + pgvector / SQLite Fallback\n(Vector Index & Relational DB)")]
         BGE --> Redis[("Redis 7\n(Inference Cache & Broker)")]
     end
 
@@ -55,10 +71,9 @@ flowchart TD
     end
 
     subgraph Presentation ["5. Moderation Workbench"]
-        XLM --> API["FastAPI Application Gateway"]
-        VL --> API
-        QWEN --> API
-        API --> UI["React 18 + Tailwind SPA Dashboard"]
+        XLM --> API["FastAPI Application Gateway\n(/api/analysis, /api/analyze)"]
+        Captum --> API
+        API --> UI["React 19 + Vite + Tailwind SPA Dashboard"]
     end
 ```
 
@@ -68,27 +83,28 @@ flowchart TD
 
 | Layer | Technologies |
 |---|---|
-| **Backend API** | Python 3.11, FastAPI, Pydantic v2, SQLAlchemy 2.0 (async), Uvicorn |
-| **Machine Learning** | PyTorch, Hugging Face Transformers, Accelerate, PEFT/LoRA, BitsAndBytes |
+| **Backend API** | Python 3.11+, FastAPI, Pydantic v2, SQLAlchemy 2.0 (async), Uvicorn |
+| **Machine Learning** | PyTorch, Hugging Face Transformers, Captum (Integrated Gradients), EasyOCR (GPU) |
 | **NLP & Vision Models** | `FacebookAI/xlm-roberta-base`, `BAAI/bge-m3`, `Qwen/Qwen3-VL-4B`, `Qwen/Qwen3-4B` |
-| **Databases & Cache** | PostgreSQL 16 with `pgvector` (HNSW indexing), Redis 7 |
-| **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, TanStack Query, Lucide Icons, Recharts |
-| **Infrastructure** | Docker, Docker Compose, PowerShell / Bash |
+| **Databases & Cache** | PostgreSQL 16 with `pgvector` (with automatic SQLite aiosqlite dev fallback), Redis 7 |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Lucide Icons, Recharts |
+| **Testing & CI** | Pytest, Pytest-asyncio, Vitest, GitHub Actions |
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- [Docker](https://docs.docker.com/get-docker/) & [Docker Compose](https://docs.docker.com/compose/) installed
-- *Or* for local manual execution: Python 3.11+, Node.js 18+, PostgreSQL 16 with pgvector, and Redis 7.
+- Python 3.11+ (with PyTorch and CUDA recommended)
+- Node.js 18+ (Node 20+ recommended)
+- Docker & Docker Compose (optional for containerized setup)
 
-### Option A: Running with Docker Compose (Recommended)
+### Option A: Local Development Setup
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/narrativelens-ai.git
-   cd narrativelens-ai
+   git clone https://github.com/AnesthesiaProvider/NarrativeLens-AI-.git
+   cd NarrativeLens-AI-
    ```
 
 2. **Configure environment variables:**
@@ -96,7 +112,48 @@ flowchart TD
    cp .env.example .env
    ```
 
-3. **Start services:**
+3. **Backend Setup:**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+   ```
+
+4. **Frontend Setup:**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+5. **Access the application:**
+   - **Frontend UI**: [http://localhost:5173](http://localhost:5173)
+   - **Backend API Docs (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+### Option B: Running Tests & Verification Scripts
+
+1. **Run backend test suite:**
+   ```bash
+   pytest backend/tests
+   ```
+
+2. **Verify live text inference with Captum attributions:**
+   ```bash
+   python scripts/test_inference.py
+   ```
+
+3. **Verify end-to-end multimodal image OCR and hate detection:**
+   ```bash
+   python scripts/test_live_api.py
+   ```
+
+---
+
+### Option C: Running with Docker Compose
+
+1. **Start services:**
    ```bash
    docker compose up --build
    ```
