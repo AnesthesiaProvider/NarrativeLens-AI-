@@ -15,26 +15,23 @@ import { api } from '@/lib/api'
 import { StatusBadge } from '@/components/StatusBadge'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import type { AnalysisResponse } from '@/types'
+import { PRESET_MEMES, type PresetMeme } from '@/assets/presetMemes'
 
-const PRESET_MEMES = [
-  {
-    name: 'Xenophobic Meme Template',
-    imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=600&q=80',
-    caption: 'When they claim they come in peace but take your hometown',
-  },
-  {
-    name: 'Benign Political Cartoon',
-    imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=600&q=80',
-    caption: 'Standard political satire regarding budget spending',
-  },
-]
+const withTimeout = <T,>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), ms)
+    ),
+  ])
+}
 
 export const MemeAnalysisPage: React.FC = () => {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [companionText, setCompanionText] = useState('')
   const [result, setResult] = useState<AnalysisResponse | null>(null)
-  const [activePreset, setActivePreset] = useState<typeof PRESET_MEMES[0] | null>(null)
+  const [activePreset, setActivePreset] = useState<PresetMeme | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isAnalyzingUrl, setIsAnalyzingUrl] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -61,7 +58,7 @@ export const MemeAnalysisPage: React.FC = () => {
     }
   }
 
-  const loadPreset = (preset: typeof PRESET_MEMES[0]) => {
+  const loadPreset = (preset: PresetMeme) => {
     setActivePreset(preset)
     setImagePreview(preset.imageUrl)
     setImageFile(null)
@@ -76,17 +73,25 @@ export const MemeAnalysisPage: React.FC = () => {
 
     try {
       if (imageFile) {
-        const res = await analyzeMemeMutation.mutateAsync({
-          image: imageFile,
-          text: companionText,
-        })
+        const res = await withTimeout(
+          analyzeMemeMutation.mutateAsync({
+            image: imageFile,
+            text: companionText,
+          }),
+          30000,
+          'Multimodal analysis timed out after 30 seconds. Please try again.'
+        )
         setResult(res)
       } else if (activePreset) {
         setIsAnalyzingUrl(true)
-        const res = await api.post<AnalysisResponse>('/analysis/image', {
-          image_url: activePreset.imageUrl,
-          text: companionText || activePreset.caption,
-        })
+        const res = await withTimeout(
+          api.post<AnalysisResponse>('/analysis/image', {
+            image_url: activePreset.imageUrl,
+            text: companionText || activePreset.caption,
+          }),
+          30000,
+          'Preset inspection timed out after 30 seconds. Please ensure backend is running.'
+        )
         setResult(res)
       }
     } catch (err: any) {
@@ -120,17 +125,29 @@ export const MemeAnalysisPage: React.FC = () => {
                 Preset Test Memes:
               </span>
               <div className="flex flex-wrap gap-2 mt-1.5">
-                {PRESET_MEMES.map((p) => (
-                  <button
-                    key={p.name}
-                    type="button"
-                    onClick={() => loadPreset(p)}
-                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
-                  >
-                    {p.name}
-                  </button>
-                ))}
+                {PRESET_MEMES.map((p) => {
+                  const isSelected = activePreset?.name === p.name
+                  return (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => loadPreset(p)}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-medium'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {p.name}
+                    </button>
+                  )
+                })}
               </div>
+              {activePreset && (
+                <p className="text-[11px] text-slate-400 mt-1.5 italic">
+                  {activePreset.description}
+                </p>
+              )}
             </div>
 
             {/* Upload Zone */}

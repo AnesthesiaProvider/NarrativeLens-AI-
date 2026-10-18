@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import logging
@@ -11,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
 from app.core.security import sanitize_text, validate_file, validate_url
@@ -236,17 +237,30 @@ async def analyze_batch(payload: BatchAnalysisRequest) -> BatchAnalysisResponse:
     summary="Analyze Meme / Image",
 )
 async def analyze_image(
+    request: Request,
     payload: Optional[ImageAnalysisRequest] = None,
     file: Optional[UploadFile] = File(None),
     image: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
     caption: Optional[str] = Form(None),
+    image_url: Optional[str] = Form(None),
     investigation_id: Optional[str] = Form(None),
 ) -> ImageAnalysisResponse:
     """Analyze an image or meme via OCR and fine-tuned hate speech model."""
     image_bytes: bytes = b""
     detected_mime = "image/jpeg"
     upload_item = file or image
+
+    # Handle application/json payloads if sent as JSON body
+    req_ct = request.headers.get("content-type", "").lower()
+    if "application/json" in req_ct and payload is None:
+        try:
+            body_dict = await request.json()
+            payload = ImageAnalysisRequest(**body_dict)
+        except Exception as exc:
+            logger.debug(f"Could not parse JSON body: {exc}")
+
+    effective_image_url = (payload.image_url if payload else None) or image_url
 
     if upload_item is not None:
         image_bytes = await upload_item.read()
@@ -255,31 +269,44 @@ async def analyze_image(
         if not valid:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
-    elif payload and payload.image_url:
-        is_safe, reason = validate_url(payload.image_url)
-        if not is_safe:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Image URL rejected by SSRF protection: {reason}",
-            )
+    elif effective_image_url:
+        if effective_image_url.startswith("data:image/"):
+            try:
+                import base64
 
-        try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                resp = await client.get(payload.image_url)
-                if resp.status_code != 200:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Could not download image, server returned HTTP {resp.status_code}",
-                    )
-                image_bytes = resp.content
-                detected_mime = resp.headers.get("content-type", "image/jpeg")
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Error downloading image from URL: {exc}",
-            )
+                header, encoded = effective_image_url.split(",", 1)
+                detected_mime = header.split(";")[0].replace("data:", "")
+                image_bytes = base64.b64decode(encoded)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid data URI format: {exc}",
+                )
+        else:
+            is_safe, reason = validate_url(effective_image_url)
+            if not is_safe:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Image URL rejected by SSRF protection: {reason}",
+                )
+
+            try:
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    resp = await client.get(effective_image_url)
+                    if resp.status_code != 200:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Could not download image, server returned HTTP {resp.status_code}",
+                        )
+                    image_bytes = resp.content
+                    detected_mime = resp.headers.get("content-type", "image/jpeg")
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Error downloading image from URL: {exc}",
+                )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -302,15 +329,35 @@ async def analyze_image(
     except Exception:
         pass
 
-    # Extract OCR text using EasyOCR on GPU
-    extracted_ocr, ocr_segments = ocr_service.extract_text(image_bytes)
+    # Extract OCR text using EasyOCR in worker thread with 10s timeout
+    extracted_ocr = ""
+    ocr_segments = []
+    try:
+        extracted_ocr, ocr_segments = await asyncio.wait_for(
+            asyncio.to_thread(ocr_service.extract_text, image_bytes),
+            timeout=10.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("OCR extraction timed out after 10s; continuing with visual classification.")
+    except Exception as exc:
+        logger.warning(f"Error during OCR text extraction: {exc}")
 
     # Companion text from form or payload
     companion_text = text or caption or (payload.text if payload else "") or ""
     combined_text = f"{extracted_ocr} {companion_text}".strip()
 
-    # 2b. Visual Zero-Shot Image Classification via CLIP ViT-B/32
-    clip_probs = model_manager.predict_multimodal(image_bytes)
+    # 2b. Visual Zero-Shot Image Classification via CLIP ViT-B/32 in worker thread with 8s timeout
+    clip_probs = None
+    try:
+        clip_probs = await asyncio.wait_for(
+            asyncio.to_thread(model_manager.predict_multimodal, image_bytes),
+            timeout=8.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("CLIP zero-shot inference timed out after 8s.")
+    except Exception as exc:
+        logger.warning(f"Error during CLIP zero-shot prediction: {exc}")
+
     clip_hate_prob = (
         clip_probs.get("a hateful offensive meme or slur", 0.0)
         + clip_probs.get("a hostile propaganda graphic", 0.0)
@@ -320,9 +367,9 @@ async def analyze_image(
         if clip_probs else None
     )
 
-    # If text is present, run our fine-tuned XLM-RoBERTa model
+    # If text is present, run our fine-tuned XLM-RoBERTa model in worker thread
     if combined_text:
-        pred = model_manager.predict_hate_speech(combined_text, explain=True)
+        pred = await asyncio.to_thread(model_manager.predict_hate_speech, combined_text, explain=True)
         raw_label = pred.get("predicted_label", "normal")
         std_label = _standardize_label(raw_label)
         confidence = float(pred.get("confidence", 0.85))
