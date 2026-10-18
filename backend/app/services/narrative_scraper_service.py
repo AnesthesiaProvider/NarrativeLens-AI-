@@ -18,6 +18,12 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+try:
+    import trafilatura
+    TRAFILATURA_AVAILABLE = True
+except ImportError:
+    TRAFILATURA_AVAILABLE = False
+
 from app.core.security import sanitize_html, sanitize_text, validate_url
 from app.db.models import DataSource, Document, EvidenceCitation, Investigation, NarrativeCluster
 from app.ml.model_manager import model_manager
@@ -36,68 +42,111 @@ HEADERS = {
 class NarrativeScraperService:
     """Orchestrates multi-platform web scraping, cross-source narrative analysis, and truth verification."""
 
+    async def _fetch_with_playwright(self, url: str) -> str:
+        """Fallback to headless Chromium via Playwright for JavaScript SPAs or protected sites."""
+        try:
+            from playwright.async_api import async_playwright
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                context = await browser.new_context(user_agent=HEADERS["User-Agent"])
+                page = await context.new_page()
+                await page.goto(url, wait_until="domcontentloaded", timeout=12000)
+                content = await page.content()
+                await browser.close()
+                return content
+        except Exception as exc:
+            logger.warning(f"Playwright fallback failed for {url}: {exc}")
+            return ""
+
     async def scrape_article_url(self, url: str) -> Dict[str, Any]:
-        """Scrape article metadata, headline, and body text from a specific news or magazine website."""
+        """Scrape article metadata, headline, and body text from a news, magazine, or blog website."""
         is_safe, reason = validate_url(url)
         if not is_safe:
             raise ValueError(f"URL rejected by security policy: {reason}")
 
+        raw_html = ""
         try:
             async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, headers=HEADERS) as client:
                 resp = await client.get(url)
-                if resp.status_code >= 400:
-                    raise ValueError(f"Target site returned HTTP {resp.status_code}")
-                raw_html = resp.text
+                if resp.status_code < 400 and len(resp.text.strip()) > 100:
+                    raw_html = resp.text
+                else:
+                    logger.info(f"Target site returned HTTP {resp.status_code}, falling back to headless Playwright for {url}")
         except Exception as exc:
-            logger.warning(f"Failed to fetch article from {url}: {exc}")
-            raise ValueError(f"Failed to fetch article from URL: {exc}")
+            logger.info(f"HTTP GET failed ({exc}), falling back to headless Playwright for {url}")
 
-        soup = BeautifulSoup(raw_html, "html.parser")
+        if not raw_html:
+            raw_html = await self._fetch_with_playwright(url)
 
-        # Extract title
+        if not raw_html:
+            raise ValueError(f"Unable to retrieve content from {url} via both HTTP and Playwright")
+
+        # 1. Try high-precision extraction with Trafilatura
+        body_text = ""
         title = ""
-        og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            title = str(og_title["content"]).strip()
-        elif soup.title and soup.title.string:
-            title = str(soup.title.string).strip()
-        elif soup.find("h1"):
-            title = soup.find("h1").get_text(strip=True)
+        author = None
+        published_at = None
 
-        # Extract publisher / domain
+        if TRAFILATURA_AVAILABLE:
+            try:
+                extracted = trafilatura.bare_extraction(raw_html, url=url, with_metadata=True)
+                if extracted:
+                    if extracted.text:
+                        body_text = extracted.text
+                    if extracted.title:
+                        title = extracted.title
+                    if extracted.author:
+                        author = extracted.author
+                    if extracted.date:
+                        try:
+                            published_at = datetime.fromisoformat(str(extracted.date).replace("Z", "+00:00"))
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.debug(f"Trafilatura extraction exception: {e}")
+
+        # 2. BeautifulSoup fallback if Trafilatura missed title or content
+        soup = BeautifulSoup(raw_html, "html.parser")
+        if not title:
+            og_title = soup.find("meta", property="og:title")
+            if og_title and og_title.get("content"):
+                title = str(og_title["content"]).strip()
+            elif soup.title and soup.title.string:
+                title = str(soup.title.string).strip()
+            elif soup.find("h1"):
+                title = soup.find("h1").get_text(strip=True)
+
         parsed_url = urllib.parse.urlparse(url)
         publisher = parsed_url.netloc.replace("www.", "")
 
-        # Extract author
-        author = None
-        author_meta = soup.find("meta", attrs={"name": "author"}) or soup.find("meta", property="article:author")
-        if author_meta and author_meta.get("content"):
-            author = str(author_meta["content"]).strip()
+        if not author:
+            author_meta = soup.find("meta", attrs={"name": "author"}) or soup.find("meta", property="article:author")
+            if author_meta and author_meta.get("content"):
+                author = str(author_meta["content"]).strip()
 
-        # Extract published date
-        published_at = None
-        date_meta = (
-            soup.find("meta", property="article:published_time")
-            or soup.find("meta", attrs={"name": "publication_date"})
-            or soup.find("meta", attrs={"name": "date"})
-        )
-        if date_meta and date_meta.get("content"):
-            try:
-                published_at = datetime.fromisoformat(str(date_meta["content"]).replace("Z", "+00:00"))
-            except Exception:
-                pass
+        if not published_at:
+            date_meta = (
+                soup.find("meta", property="article:published_time")
+                or soup.find("meta", attrs={"name": "publication_date"})
+                or soup.find("meta", attrs={"name": "date"})
+            )
+            if date_meta and date_meta.get("content"):
+                try:
+                    published_at = datetime.fromisoformat(str(date_meta["content"]).replace("Z", "+00:00"))
+                except Exception:
+                    pass
 
-        # Extract main text
-        paragraphs: List[str] = []
-        article_elem = soup.find("article") or soup.find("main") or soup
-        for p in article_elem.find_all("p"):
-            p_text = sanitize_text(p.get_text(strip=True))
-            if len(p_text) > 30 and not any(
-                skip in p_text.lower() for skip in ["cookie", "subscribe", "privacy policy", "terms of service", "all rights reserved"]
-            ):
-                paragraphs.append(p_text)
+        if not body_text:
+            paragraphs: List[str] = []
+            article_elem = soup.find("article") or soup.find("main") or soup
+            for p in article_elem.find_all("p"):
+                p_text = sanitize_text(p.get_text(strip=True))
+                if len(p_text) > 30 and not any(
+                    skip in p_text.lower() for skip in ["cookie", "subscribe", "privacy policy", "terms of service", "all rights reserved"]
+                ):
+                    paragraphs.append(p_text)
+            body_text = "\n\n".join(paragraphs[:25])
 
-        body_text = "\n\n".join(paragraphs[:25])
         snippet = body_text[:400] + ("..." if len(body_text) > 400 else "")
 
         return {
