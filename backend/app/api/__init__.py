@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.analysis import router as analysis_router
+from app.api.analysis import analyze_router, router as analysis_router
 from app.api.coordination import router as coordination_router
 from app.api.evaluations import router as evaluations_router
 from app.api.feedback import router as feedback_router
@@ -17,6 +17,7 @@ api_router = APIRouter()
 api_router.include_router(health_router)
 api_router.include_router(investigations_router)
 api_router.include_router(analysis_router)
+api_router.include_router(analyze_router)
 api_router.include_router(ingestion_router)
 api_router.include_router(narratives_router)
 api_router.include_router(coordination_router)

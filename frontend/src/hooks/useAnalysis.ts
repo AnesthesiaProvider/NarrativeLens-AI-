@@ -27,10 +27,9 @@ export function useAnalyzeText() {
   return useMutation({
     mutationFn: async (payload: TextAnalysisPayload): Promise<AnalysisResponse> => {
       try {
+        return await api.post<AnalysisResponse>('/analysis/text', payload)
+      } catch {
         return await api.post<AnalysisResponse>('/analyze/text', payload)
-      } catch (err) {
-        // Fallback endpoint
-        return await api.post<AnalysisResponse>('/analyze', payload)
       }
     },
   })
@@ -40,9 +39,9 @@ export function useAnalyzeImage() {
   return useMutation({
     mutationFn: async (formData: FormData): Promise<AnalysisResponse> => {
       try {
+        return await api.upload<AnalysisResponse>('/analysis/image', formData)
+      } catch {
         return await api.upload<AnalysisResponse>('/analyze/image', formData)
-      } catch (err) {
-        return await api.upload<AnalysisResponse>('/analyze/meme', formData)
       }
     },
   })
@@ -55,7 +54,11 @@ export function useAnalyzeMeme() {
       formData.append('image', image)
       if (text) formData.append('text', text)
       if (investigation_id) formData.append('investigation_id', investigation_id)
-      return await api.upload<AnalysisResponse>('/analyze/meme', formData)
+      try {
+        return await api.upload<AnalysisResponse>('/analysis/meme', formData)
+      } catch {
+        return await api.upload<AnalysisResponse>('/analyze/meme', formData)
+      }
     },
   })
 }
@@ -77,7 +80,11 @@ export function useBatchAnalyzeCSV() {
     mutationFn: async (file: File): Promise<{ processed: number; results: AnalysisResponse[] }> => {
       const formData = new FormData()
       formData.append('file', file)
-      return await api.upload<{ processed: number; results: AnalysisResponse[] }>('/analyze/batch', formData)
+      try {
+        return await api.upload<{ processed: number; results: AnalysisResponse[] }>('/analysis/batch', formData)
+      } catch {
+        return await api.upload<{ processed: number; results: AnalysisResponse[] }>('/analyze/batch', formData)
+      }
     },
   })
 }

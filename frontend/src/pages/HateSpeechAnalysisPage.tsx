@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import { useAnalyzeText, useSubmitCorrection, useBatchAnalyzeCSV } from '@/hooks/useAnalysis'
+import { api } from '@/lib/api'
 import { StatusBadge } from '@/components/StatusBadge'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { ErrorDisplay } from '@/components/ErrorDisplay'
@@ -53,43 +54,21 @@ export const HateSpeechAnalysisPage: React.FC = () => {
   const batchCsvMutation = useBatchAnalyzeCSV()
   const correctionMutation = useSubmitCorrection()
 
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+
   const handleAnalyze = async () => {
     if (!text.trim()) return
     setCorrectionSuccess(false)
+    setAnalysisError(null)
     try {
       const res = await analyzeMutation.mutateAsync({
         text,
-        model_type: 'ensemble_transformer',
+        model_type: 'xlm_roberta',
       })
       setAnalysisResult(res)
-    } catch {
-      // In case backend is mocked or returns client-side simulation
-      const mockResult: AnalysisResponse = {
-        id: `analysis-${Date.now()}`,
-        text,
-        classification: {
-          label: text.toLowerCase().includes('vermin') || text.toLowerCase().includes('eradicate')
-            ? 'Hate Speech'
-            : text.toLowerCase().includes('moron') || text.toLowerCase().includes('garbage')
-            ? 'Offensive'
-            : 'Neutral',
-          confidence: 0.94,
-          probabilities: {
-            'Hate Speech': text.toLowerCase().includes('vermin') ? 0.94 : 0.04,
-            'Offensive': text.toLowerCase().includes('moron') ? 0.88 : 0.12,
-            'Neutral': !text.toLowerCase().includes('vermin') && !text.toLowerCase().includes('moron') ? 0.91 : 0.05,
-          },
-          explanation: 'Token saliency identified elevated dehumanizing vocabulary targeting demographic group.',
-          flagged_tokens: text.toLowerCase().includes('vermin')
-            ? ['vermin', 'eradicate', 'invaders']
-            : text.toLowerCase().includes('moron')
-            ? ['stupid', 'moron', 'garbage']
-            : [],
-          model_version: 'DeBERTa-v3-HateMultilingual-v2',
-        },
-        created_at: new Date().toISOString(),
-      }
-      setAnalysisResult(mockResult)
+    } catch (err: any) {
+      console.error('Inference error:', err)
+      setAnalysisError(err?.message || 'Inference error: failed to communicate with backend classification service.')
     }
   }
 
@@ -97,11 +76,27 @@ export const HateSpeechAnalysisPage: React.FC = () => {
     const file = e.target.files?.[0]
     if (!file) return
     setSelectedFile(file)
+    setAnalysisError(null)
+
     if (file.name.endsWith('.csv')) {
       try {
         await batchCsvMutation.mutateAsync(file)
-      } catch (err) {
-        console.warn('Batch CSV upload completed with local handling')
+      } catch (err: any) {
+        setAnalysisError('CSV batch upload failed: ' + (err?.message || 'server error'))
+      }
+    } else if (file.type.startsWith('image/')) {
+      try {
+        const formData = new FormData()
+        formData.append('image', file)
+        if (text) formData.append('text', text)
+        const res = await api.upload<AnalysisResponse>('/analysis/image', formData)
+        setAnalysisResult(res)
+        if (res.ocr_text && !text) {
+          setText(res.ocr_text)
+        }
+      } catch (err: any) {
+        console.error('Image analysis error:', err)
+        setAnalysisError('Image OCR analysis failed: ' + (err?.message || 'server error'))
       }
     }
   }
@@ -256,7 +251,7 @@ export const HateSpeechAnalysisPage: React.FC = () => {
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Cpu className="w-4 h-4 text-indigo-500" />
-              <span>Model: {analysisResult?.classification.model_version || 'DeBERTa-v3 / RoBERTa-hate-multilingual'}</span>
+              <span>Model: {analysisResult?.classification.model_version || 'XLM-RoBERTa-base (Fine-Tuned)'}</span>
             </div>
             <span className="font-mono">Device: CUDA (FP16)</span>
           </div>
@@ -264,6 +259,13 @@ export const HateSpeechAnalysisPage: React.FC = () => {
 
         {/* Results Column */}
         <div className="lg:col-span-5 space-y-4">
+          {analysisError && (
+            <div className="rounded-xl border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-4 text-xs text-rose-700 dark:text-rose-300">
+              <span className="font-semibold block mb-0.5">Inference Status</span>
+              <p>{analysisError}</p>
+            </div>
+          )}
+
           {analyzeMutation.isPending ? (
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12">
               <LoadingSpinner centered label="Running transformer inference..." />

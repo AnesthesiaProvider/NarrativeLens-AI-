@@ -15,12 +15,35 @@ class TokenAttribution(BaseModel):
     score: float = Field(..., description="Attribution / SHAP importance weight")
 
 
+class ClassificationDetail(BaseModel):
+    """Nested classification details matching frontend specifications."""
+
+    label: str = Field(..., description="Standardized label (e.g. Hate Speech, Offensive, Neutral)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
+    probabilities: Dict[str, float] = Field(
+        default_factory=dict, description="Probabilities across classes"
+    )
+    explanation: Optional[str] = Field(None, description="Human-readable rationale")
+    flagged_tokens: List[str] = Field(default_factory=list, description="Salient tokens or triggers")
+    model_version: Optional[str] = Field("XLM-RoBERTa-FineTuned", description="Model version tag")
+
+
+class VisionResults(BaseModel):
+    """Multimodal vision reasoning results."""
+
+    description: Optional[str] = Field(None, description="Visual description of the content")
+    detected_objects: List[str] = Field(default_factory=list, description="Detected objects and themes")
+    safety_ratings: Dict[str, str] = Field(default_factory=dict, description="Safety category ratings")
+
+
 class TextAnalysisRequest(BaseModel):
     """Request payload for analyzing a single piece of text."""
 
     text: str = Field(..., min_length=1, description="Content to analyze")
-    model_id: Optional[str] = Field(None, description="Specific model ID to use (defaults to default model)")
-    explain: bool = Field(False, description="Whether to compute explainability/feature attributions")
+    model_id: Optional[str] = Field(None, description="Specific model ID to use")
+    model_type: Optional[str] = Field(None, description="Model type identifier")
+    investigation_id: Optional[str] = Field(None, description="Associated investigation ID")
+    explain: bool = Field(True, description="Whether to compute explainability/feature attributions")
     language: Optional[str] = Field("en", description="Optional text language code")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Custom metadata to associate")
 
@@ -28,21 +51,29 @@ class TextAnalysisRequest(BaseModel):
 class TextAnalysisResponse(BaseModel):
     """Analysis result for a single text document."""
 
+    id: str = Field(default_factory=lambda: f"analysis-{uuid.uuid4().hex[:12]}")
     text: str = Field(..., description="Analyzed input text or snippet")
     predicted_label: str = Field(..., description="Predicted hate speech category or safe/neutral")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
     class_probabilities: Dict[str, float] = Field(
         default_factory=dict, description="Probabilities across all candidate classes"
     )
-    explanation: Optional[Dict[str, Any]] = Field(
-        None, description="SHAP or token attribution explanation details"
+    explanation: Optional[Any] = Field(
+        None, description="Integrated Gradients or token attribution explanation details"
+    )
+    classification: Optional[ClassificationDetail] = Field(
+        None, description="Nested classification container for frontend compatibility"
     )
     model_id: str = Field(..., description="Identifier of the model used")
-    model_version: Optional[str] = Field("1.0.0", description="Model version")
-    is_available: bool = Field(True, description="Indicates whether ML inference was performed or simulated/unavailable")
+    model_version: Optional[str] = Field("XLM-RoBERTa-FineTuned", description="Model version")
+    is_available: bool = Field(True, description="Indicates whether ML inference was performed")
     processed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp of inference",
+    )
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
+        description="ISO formatted timestamp",
     )
 
 
@@ -85,6 +116,8 @@ class ImageAnalysisRequest(BaseModel):
     """Request payload for image and multimodal analysis."""
 
     image_url: Optional[str] = Field(None, description="Publicly accessible HTTP/HTTPS image URL")
+    text: Optional[str] = Field(None, description="Companion text, caption, or context")
+    investigation_id: Optional[str] = Field(None, description="Associated investigation ID")
     model_id: Optional[str] = Field(None, description="Optional multimodal model ID")
     ocr_enabled: bool = Field(True, description="Whether to execute OCR text extraction on the image")
 
@@ -92,13 +125,19 @@ class ImageAnalysisRequest(BaseModel):
 class ImageAnalysisResponse(BaseModel):
     """Response payload for image and multimodal analysis."""
 
+    id: str = Field(default_factory=lambda: f"meme-{uuid.uuid4().hex[:12]}")
+    text: Optional[str] = Field(None, description="Analyzed or companion text")
     image_hash: str = Field(..., description="SHA-256 hash of the analyzed image")
     perceptual_hash: Optional[str] = Field(None, description="Perceptual pHash for near-duplicate matching")
     mime_type: str = Field(..., description="Detected image MIME type")
     ocr_text: Optional[str] = Field(None, description="Extracted OCR text if enabled and found")
-    predicted_label: str = Field(..., description="Predicted label (e.g. hateful, safe, suspicious)")
+    predicted_label: str = Field(..., description="Predicted label")
     confidence: float = Field(..., description="Model classification confidence")
     class_probabilities: Dict[str, float] = Field(default_factory=dict)
+    classification: Optional[ClassificationDetail] = Field(None, description="Nested classification container")
+    vision_results: Optional[VisionResults] = Field(None, description="Multimodal visual reasoning")
+    explanation: Optional[Any] = Field(None, description="Explanation or token attribution")
     model_id: str = Field(...)
-    is_available: bool = Field(True, description="Whether multimodal model is loaded")
+    is_available: bool = Field(True, description="Whether ML models are loaded")
     processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { useAnalyzeMeme } from '@/hooks/useAnalysis'
+import { api } from '@/lib/api'
 import { StatusBadge } from '@/components/StatusBadge'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import type { AnalysisResponse } from '@/types'
@@ -20,21 +21,11 @@ const PRESET_MEMES = [
     name: 'Xenophobic Meme Template',
     imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=600&q=80',
     caption: 'When they claim they come in peace but take your hometown',
-    simulatedOcr: 'THEY ARE TAKING OVER OUR STREETS WHILE THE MEDIA SLEEPS',
-    detectedObjects: ['Crowd', 'Protest sign', 'Urban street'],
-    multimodalLabel: 'Hate Speech',
-    multimodalConfidence: 0.91,
-    multimodalExplanation: 'Visual context portrays minority crowd with menacing framing, paired with xenophobic replacement rhetoric in OCR caption.',
   },
   {
     name: 'Benign Political Cartoon',
     imageUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=600&q=80',
     caption: 'Standard political satire regarding budget spending',
-    simulatedOcr: 'TAX CUTS FOR GIANTS, PENNIES FOR ROADS',
-    detectedObjects: ['Illustration', 'Briefcase', 'Coin stack'],
-    multimodalLabel: 'Neutral / Satire',
-    multimodalConfidence: 0.95,
-    multimodalExplanation: 'Standard civic political commentary on fiscal policy without protected group hate markers or slurs.',
   },
 ]
 
@@ -44,6 +35,8 @@ export const MemeAnalysisPage: React.FC = () => {
   const [companionText, setCompanionText] = useState('')
   const [result, setResult] = useState<AnalysisResponse | null>(null)
   const [activePreset, setActivePreset] = useState<typeof PRESET_MEMES[0] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isAnalyzingUrl, setIsAnalyzingUrl] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const analyzeMemeMutation = useAnalyzeMeme()
@@ -51,6 +44,8 @@ export const MemeAnalysisPage: React.FC = () => {
   const handleFile = (file: File) => {
     setImageFile(file)
     setActivePreset(null)
+    setResult(null)
+    setError(null)
     const reader = new FileReader()
     reader.onload = () => {
       setImagePreview(reader.result as string)
@@ -71,65 +66,34 @@ export const MemeAnalysisPage: React.FC = () => {
     setImagePreview(preset.imageUrl)
     setImageFile(null)
     setCompanionText(preset.caption)
-    setResult({
-      id: `preset-${Date.now()}`,
-      classification: {
-        label: preset.multimodalLabel,
-        confidence: preset.multimodalConfidence,
-        probabilities: {
-          'Hate Speech': preset.multimodalLabel === 'Hate Speech' ? 0.91 : 0.05,
-          'Neutral': preset.multimodalLabel === 'Hate Speech' ? 0.09 : 0.95,
-        },
-        explanation: preset.multimodalExplanation,
-        model_version: 'CLIP-ViT-L/14 + OCR-Ensemble',
-      },
-      ocr_text: preset.simulatedOcr,
-      vision_results: {
-        description: `Visual analysis of meme template: ${preset.name}`,
-        detected_objects: preset.detectedObjects,
-        safety_ratings: {
-          hate_symbol: preset.multimodalLabel === 'Hate Speech' ? 'HIGH' : 'LOW',
-          violence: 'NEGLIGIBLE',
-        },
-      },
-      created_at: new Date().toISOString(),
-    })
+    setResult(null)
+    setError(null)
   }
 
   const handleAnalyze = async () => {
     if (!imageFile && !activePreset) return
+    setError(null)
 
-    if (imageFile) {
-      try {
+    try {
+      if (imageFile) {
         const res = await analyzeMemeMutation.mutateAsync({
           image: imageFile,
           text: companionText,
         })
         setResult(res)
-      } catch {
-        // Fallback simulated result
-        setResult({
-          id: `meme-${Date.now()}`,
-          classification: {
-            label: 'Offensive / Borderline',
-            confidence: 0.86,
-            probabilities: {
-              'Hate Speech': 0.35,
-              'Offensive / Borderline': 0.86,
-              'Neutral': 0.14,
-            },
-            explanation: 'Multimodal fusion of extracted text and visual imagery indicates hostile targeting.',
-            model_version: 'CLIP-ViT-B/32 + PaddleOCR',
-          },
-          ocr_text: companionText || 'INSPECTED MEME TEXT: TARGET IDENTIFIED',
-          vision_results: {
-            description: 'Image containing text banner with graphic contrast',
-            detected_objects: ['Text overlay', 'Person', 'Digital illustration'],
-            safety_ratings: { hate_symbol: 'MEDIUM', harassment: 'HIGH' },
-          },
-          created_at: new Date().toISOString(),
+      } else if (activePreset) {
+        setIsAnalyzingUrl(true)
+        const res = await api.post<AnalysisResponse>('/analysis/image', {
+          image_url: activePreset.imageUrl,
+          text: companionText || activePreset.caption,
         })
+        setResult(res)
       }
+    } catch (err: any) {
+      console.error('Meme inspection error:', err)
+      setError(err?.message || 'Multimodal analysis failed. Ensure backend and OCR services are operational.')
+    } finally {
+      setIsAnalyzingUrl(false)
     }
   }
 
@@ -240,15 +204,15 @@ export const MemeAnalysisPage: React.FC = () => {
 
               <button
                 onClick={handleAnalyze}
-                disabled={(!imageFile && !activePreset) || analyzeMemeMutation.isPending}
+                disabled={(!imageFile && !activePreset) || analyzeMemeMutation.isPending || isAnalyzingUrl}
                 className="ml-auto inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-sm transition-colors disabled:opacity-50"
               >
-                {analyzeMemeMutation.isPending ? (
+                {analyzeMemeMutation.isPending || isAnalyzingUrl ? (
                   <LoadingSpinner size="sm" />
                 ) : (
                   <Sparkles className="w-4 h-4" />
                 )}
-                <span>{analyzeMemeMutation.isPending ? 'Processing Vision Model...' : 'Run Multimodal Inspection'}</span>
+                <span>{analyzeMemeMutation.isPending || isAnalyzingUrl ? 'Processing Vision Model...' : 'Run Multimodal Inspection'}</span>
               </button>
             </div>
           </div>
@@ -256,7 +220,18 @@ export const MemeAnalysisPage: React.FC = () => {
 
         {/* Results Column */}
         <div className="lg:col-span-6 space-y-4">
-          {!result ? (
+          {error && (
+            <div className="rounded-xl border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-4 text-xs text-rose-700 dark:text-rose-300">
+              <span className="font-semibold block mb-0.5">Inspection Status</span>
+              <p>{error}</p>
+            </div>
+          )}
+
+          {analyzeMemeMutation.isPending || isAnalyzingUrl ? (
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12">
+              <LoadingSpinner centered label="Extracting OCR text and running multimodal inference..." />
+            </div>
+          ) : !result ? (
             <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/30 p-12 text-center text-slate-400">
               <Eye className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
               <p className="text-sm font-medium">No image analyzed yet</p>
