@@ -36,5 +36,5 @@ async def test_models_status(client: AsyncClient):
     assert "models" in data
     assert isinstance(data["models"], list)
     assert len(data["models"]) >= 3
-    model_ids = [m["model_id"] for m in data["models"]]
-    assert any("hate-speech" in mid for mid in model_ids)
+    model_types = [m["model_type"] for m in data["models"]]
+    assert "hate_speech" in model_types

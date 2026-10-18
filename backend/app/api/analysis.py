@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel, Field
 
 from app.core.security import sanitize_text, validate_file, validate_url
 from app.ml.model_manager import model_manager
@@ -394,9 +395,31 @@ async def analyze_image(
     )
 
 
+
+class CommentHateScanRequest(BaseModel):
+    target: str = Field(..., description="YouTube URL, Video ID, web article URL, or search topic keyword.")
+    max_comments: int = Field(default=40, ge=1, le=100, description="Max comments to fetch and analyze.")
+
+
+@router.post("/scan-hate-comments")
+async def scan_hate_comments(payload: CommentHateScanRequest) -> Dict[str, Any]:
+    """Scrape YouTube video titles and comment threads, evaluate hate speech, and return 'Need to Know' advisory."""
+    from app.services.comment_hate_detector_service import comment_hate_detector_service
+    try:
+        return await comment_hate_detector_service.analyze_target(
+            target=payload.target, max_comments=payload.max_comments
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Error scanning comments for hate speech")
+        raise HTTPException(status_code=500, detail=f"Failed to scan target: {str(exc)}")
+
+
 # Mount matching routes on alias analyze_router
 analyze_router.add_api_route("/text", analyze_text, methods=["POST"], response_model=TextAnalysisResponse)
 analyze_router.add_api_route("", analyze_text, methods=["POST"], response_model=TextAnalysisResponse)
 analyze_router.add_api_route("/batch", analyze_batch, methods=["POST"], response_model=BatchAnalysisResponse)
 analyze_router.add_api_route("/image", analyze_image, methods=["POST"], response_model=ImageAnalysisResponse)
 analyze_router.add_api_route("/meme", analyze_image, methods=["POST"], response_model=ImageAnalysisResponse)
+analyze_router.add_api_route("/scan-hate-comments", scan_hate_comments, methods=["POST"])
