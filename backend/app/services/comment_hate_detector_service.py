@@ -286,6 +286,60 @@ class CommentHateDetectorService:
                 "explanation_tokens": [],
             }
 
+    async def explain_with_local_llm(
+        self, context_title: str, text: str, initial_label: str, client: Optional[httpx.AsyncClient] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Call local Ollama LLM to assess context, detect targeted groups, and write a human-readable explanation."""
+        if not getattr(settings, "ENABLE_LLM_CONTEXT_ARBITER", True):
+            return None
+
+        base_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+        model_name = getattr(settings, "OLLAMA_MODEL", "llama3.2:3b")
+
+        prompt = (
+            f"You are an expert NLP safety analyst evaluating user comments in context of online content.\n"
+            f"Context / Video Title: \"{context_title}\"\n"
+            f"User Comment: \"{text}\"\n"
+            f"Initial Model Flag: {initial_label}\n\n"
+            "Task: Analyze whether this is genuine hate speech (dehumanization, slurs, group incitement), "
+            "offensive speech (profanity, aggressive personal insults), or neutral/free expression in context.\n"
+            "Respond ONLY with valid JSON in this exact structure:\n"
+            "{\n"
+            "  \"verdict\": \"Hate Speech\" or \"Offensive\" or \"Neutral\",\n"
+            "  \"targeted_group\": \"name of targeted group or None\",\n"
+            "  \"explanation\": \"2 concise sentences explaining the context, sarcasm, or linguistic intent.\"\n"
+            "}"
+        )
+
+        try:
+            req_payload = {
+                "model": model_name,
+                "prompt": prompt,
+                "format": "json",
+                "stream": False,
+                "options": {"temperature": 0.1, "num_predict": 150},
+            }
+            if client:
+                resp = await client.post(f"{base_url}/api/generate", json=req_payload, timeout=8.0)
+            else:
+                async with httpx.AsyncClient(timeout=8.0) as temp_client:
+                    resp = await temp_client.post(f"{base_url}/api/generate", json=req_payload)
+
+            if resp.status_code == 200:
+                raw_json = resp.json().get("response", "{}")
+                import json
+                parsed = json.loads(raw_json)
+                return {
+                    "model": model_name,
+                    "verdict": parsed.get("verdict", initial_label),
+                    "targeted_group": parsed.get("targeted_group", "None"),
+                    "explanation": parsed.get("explanation", ""),
+                }
+        except Exception as exc:
+            logger.debug(f"Ollama local LLM reasoning skipped ({exc})")
+
+        return None
+
     async def analyze_target(
         self, target: str, max_comments: int = 50
     ) -> Dict[str, Any]:
@@ -352,6 +406,27 @@ class CommentHateDetectorService:
             reverse=True,
         )
 
+        # 2b. Local LLM Contextual Arbitration (Ollama Llama 3.2 / Qwen 2.5)
+        llm_active = False
+        if title_eval["is_hate"] or title_eval["is_offensive"]:
+            t_llm = await self.explain_with_local_llm(title_text, title_text, title_eval["label"])
+            if t_llm:
+                title_eval["llm_reasoning"] = t_llm
+                llm_active = True
+
+        async def _enrich_comment(c_item: Dict[str, Any]):
+            llm_res = await self.explain_with_local_llm(title_text, c_item["text"], c_item["label"])
+            if llm_res:
+                c_item["llm_reasoning"] = llm_res
+                return True
+            return False
+
+        if flagged_comments:
+            enrich_tasks = [_enrich_comment(c) for c in flagged_comments[:5]]
+            enrich_results = await asyncio.gather(*enrich_tasks, return_exceptions=True)
+            if any(r is True for r in enrich_results if not isinstance(r, Exception)):
+                llm_active = True
+
         # 3. Construct "Need to Know" Executive Safety & Narrative Advisory
         if hate_rate >= 0.20 or hate_count >= 5:
             risk_level = "CRITICAL_HARASSMENT"
@@ -372,6 +447,11 @@ class CommentHateDetectorService:
 
         # Key points someone needs to know
         need_to_know_advisories: List[str] = []
+
+        if llm_active:
+            need_to_know_advisories.append(
+                f"🤖 Local LLM Context Arbiter Active ({getattr(settings, 'OLLAMA_MODEL', 'llama3.2:3b')}): Contextual nuance, identity targeting, and intent analyzed via Ollama."
+            )
 
         # Bullet 1: Title evaluation
         if title_eval["is_hate"]:
@@ -433,6 +513,7 @@ class CommentHateDetectorService:
                 "is_hate": title_eval["is_hate"],
                 "is_offensive": title_eval["is_offensive"],
                 "explanation_tokens": title_eval["explanation_tokens"],
+                "llm_reasoning": title_eval.get("llm_reasoning"),
             },
             "metrics": {
                 "total_scanned": total_scanned,
@@ -447,6 +528,8 @@ class CommentHateDetectorService:
                 "risk_level": risk_level,
                 "risk_label": risk_label,
                 "risk_color": color,
+                "llm_active": llm_active,
+                "llm_model": getattr(settings, "OLLAMA_MODEL", "llama3.2:3b") if llm_active else None,
                 "what_you_need_to_know": need_to_know_advisories,
             },
             "flagged_comments": flagged_comments,

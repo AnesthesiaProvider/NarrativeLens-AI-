@@ -92,6 +92,9 @@ async def main() -> None:
     title_status = "🚨 HATE SPEECH" if title_eval["is_hate"] else ("⚠️ OFFENSIVE" if title_eval["is_offensive"] else "✅ NEUTRAL")
     print(f" Classification: {title_status} ({title_eval['label']})")
     print(f" Confidence:     {title_eval['confidence']*100:.2f}%")
+    if title_eval.get("llm_reasoning"):
+        t_llm = title_eval["llm_reasoning"]
+        print(f" 🤖 LLM Context:  Target: {t_llm.get('targeted_group', 'None')} | {t_llm.get('explanation', '')}")
 
     print("\n" + "-" * 70)
     print(" 📊 COMMUNITY DISCUSSION METRICS")
@@ -117,7 +120,10 @@ async def main() -> None:
             badge = "🚨 [HATE]" if c["is_hate"] else "⚠️ [OFFENSIVE]"
             print(f" {i}. {badge} @{c['author']} ({c['like_count']} likes | {c['confidence']*100:.1f}% conf):")
             print(f"    \"{c['text'].strip()}\"")
-            if c["explanation_tokens"]:
+            if c.get("llm_reasoning"):
+                llm_info = c["llm_reasoning"]
+                print(f"    🤖 LLM Arbiter: Target: {llm_info.get('targeted_group', 'None')} | {llm_info.get('explanation', '')}")
+            if c.get("explanation_tokens"):
                 tok_str = ", ".join([f"{t['token']} ({t['score']})" for t in c["explanation_tokens"]])
                 print(f"    Keywords: {tok_str}")
             print()

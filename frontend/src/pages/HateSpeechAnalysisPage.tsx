@@ -17,6 +17,7 @@ import {
   Flame,
   Filter,
   ThumbsUp,
+  Bot,
 } from 'lucide-react'
 import { useAnalyzeText, useSubmitCorrection, useBatchAnalyzeCSV } from '@/hooks/useAnalysis'
 import { api } from '@/lib/api'
@@ -356,6 +357,20 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                         {Math.round(ytResult.title_analysis?.confidence * 100)}% conf
                       </span>
                     </div>
+                    {ytResult.title_analysis?.llm_reasoning && (
+                      <div className="mt-2 text-xs p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-slate-700 dark:text-slate-300 space-y-1">
+                        <div className="flex items-center gap-1 font-semibold text-indigo-700 dark:text-indigo-300">
+                          <Bot className="w-3.5 h-3.5" />
+                          <span>LLM Context Arbiter</span>
+                          {ytResult.title_analysis.llm_reasoning.targeted_group && ytResult.title_analysis.llm_reasoning.targeted_group !== 'None' && (
+                            <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-indigo-200/60 dark:bg-indigo-800 font-mono">
+                              Target: {ytResult.title_analysis.llm_reasoning.targeted_group}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] leading-relaxed">{ytResult.title_analysis.llm_reasoning.explanation}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -389,19 +404,27 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                       What Someone Needs to Know Before Reading or Engaging
                     </h3>
                   </div>
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
-                      ytResult.advisory?.risk_color === 'red'
-                        ? 'bg-rose-600 text-white'
-                        : ytResult.advisory?.risk_color === 'orange'
-                        ? 'bg-amber-600 text-white'
-                        : ytResult.advisory?.risk_color === 'amber'
-                        ? 'bg-yellow-600 text-white'
-                        : 'bg-emerald-600 text-white'
-                    }`}
-                  >
-                    {ytResult.advisory?.risk_label}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {ytResult.advisory?.llm_active && (
+                      <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        <Bot className="w-3 h-3" />
+                        LLM Arbiter: {ytResult.advisory?.llm_model || 'llama3.2:3b'}
+                      </span>
+                    )}
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
+                        ytResult.advisory?.risk_color === 'red'
+                          ? 'bg-rose-600 text-white'
+                          : ytResult.advisory?.risk_color === 'orange'
+                          ? 'bg-amber-600 text-white'
+                          : ytResult.advisory?.risk_color === 'amber'
+                          ? 'bg-yellow-600 text-white'
+                          : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      {ytResult.advisory?.risk_label}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
@@ -494,6 +517,23 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                         <p className="text-sm text-slate-700 dark:text-slate-300 italic">
                           "{c.text}"
                         </p>
+
+                        {c.llm_reasoning && (
+                          <div className="p-2.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 text-xs space-y-1">
+                            <div className="flex items-center gap-1.5 font-medium text-indigo-700 dark:text-indigo-300">
+                              <Bot className="w-3.5 h-3.5" />
+                              <span>LLM Context Arbiter</span>
+                              {c.llm_reasoning.targeted_group && c.llm_reasoning.targeted_group !== 'None' && (
+                                <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-indigo-200/60 dark:bg-indigo-800 text-indigo-900 dark:text-indigo-100 font-mono">
+                                  Target: {c.llm_reasoning.targeted_group}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-slate-600 dark:text-slate-300 leading-relaxed text-[11px]">
+                              {c.llm_reasoning.explanation}
+                            </p>
+                          </div>
+                        )}
 
                         {c.explanation_tokens && c.explanation_tokens.length > 0 && (
                           <div className="flex items-center gap-1.5 flex-wrap pt-1">

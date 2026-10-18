@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     # External APIs & Social Media
     YOUTUBE_API_KEY: Optional[str] = None
 
+    # Local LLM Context Arbiter (Ollama)
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:3b"
+    ENABLE_LLM_CONTEXT_ARBITER: bool = True
+
     # Security & SSRF Protection
     BLOCKED_IP_NETWORKS: List[str] = [
         "127.0.0.0/8",
