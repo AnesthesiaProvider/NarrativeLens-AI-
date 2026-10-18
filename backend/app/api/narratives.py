@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.db.models import Document, EvidenceCitation, NarrativeCluster, NarrativeDocument
 from app.schemas.common import PaginatedResponse
+from app.services.narrative_scraper_service import narrative_scraper_service
 
 router = APIRouter(tags=["Narratives & Evidence"])
 
@@ -66,6 +67,20 @@ class EvidenceCitationResponse(BaseModel):
 class NarrativeListResponse(PaginatedResponse[NarrativeClusterItem]):
     """Paginated collection of narrative clusters."""
     pass
+
+
+class EvidenceListResponse(PaginatedResponse[EvidenceCitationResponse]):
+    """Paginated collection of evidence citations."""
+    pass
+
+
+class LiveNarrativeScrapeRequest(BaseModel):
+    """Request payload for scraping news sites, social media, and verifying truth results."""
+
+    query: Optional[str] = Field(None, description="Topic, claim, or public controversy to search")
+    article_url: Optional[str] = Field(None, description="Direct URL of a news or magazine article")
+    investigation_id: Optional[uuid.UUID] = Field(None, description="Optional target investigation UUID")
+    max_items_per_source: int = Field(8, ge=2, le=25, description="Items to fetch per platform")
 
 
 @router.get(
@@ -160,6 +175,46 @@ async def get_narrative_cluster(
 
 
 @router.get(
+    "/evidence",
+    response_model=EvidenceListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List Evidence Citations",
+    description="Retrieve all fact-checked claim citations with supporting and contradicting sources.",
+)
+async def list_evidence_citations(
+    investigation_id: Optional[uuid.UUID] = Query(None, description="Filter by investigation UUID"),
+    status_filter: Optional[str] = Query(None, description="Filter by status (verified, debunked, disputed, unverified)"),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> EvidenceListResponse:
+    """List fact-check evidence claims with pagination."""
+    query = select(EvidenceCitation)
+    if investigation_id:
+        query = query.where(EvidenceCitation.investigation_id == investigation_id)
+    if status_filter:
+        query = query.where(EvidenceCitation.evidence_status == status_filter)
+
+    total_query = select(func.count()).select_from(query.subquery())
+    total = (await db.scalar(total_query)) or 0
+
+    offset = (page - 1) * size
+    stmt = query.order_by(EvidenceCitation.created_at.desc()).offset(offset).limit(size)
+    records = (await db.scalars(stmt)).all()
+
+    items = [EvidenceCitationResponse.model_validate(r) for r in records]
+    total_pages = math.ceil(total / size) if size > 0 else 0
+
+    return EvidenceListResponse(
+        items=items,
+        total=total,
+        page=page,
+        size=size,
+        pages=total_pages,
+    )
+
+
+@router.get(
     "/evidence/{citation_id}",
     response_model=EvidenceCitationResponse,
     status_code=status.HTTP_200_OK,
@@ -181,3 +236,45 @@ async def get_evidence_citation(
         )
 
     return EvidenceCitationResponse.model_validate(citation)
+
+
+@router.post(
+    "/narratives/scrape-narrative",
+    status_code=status.HTTP_200_OK,
+    summary="Scrape News & Social Media for True Narrative Results",
+    description="Crawl newspapers, magazines, Reddit, and forums to synthesize cross-source evidence and true results.",
+)
+@router.post(
+    "/narratives/fact-check",
+    status_code=status.HTTP_200_OK,
+    summary="Fact-Check Narrative across Multi-Platform Sources",
+)
+async def scrape_and_verify_narrative(
+    payload: LiveNarrativeScrapeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Execute live web scraping across news and social media, synthesize claims, and determine true results."""
+    query = payload.query or ""
+    article_url = payload.article_url
+
+    if not query.strip() and not article_url:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Either a search query or a news article URL must be provided.",
+        )
+
+    try:
+        results = await narrative_scraper_service.execute_narrative_investigation(
+            query=query,
+            article_url=article_url,
+            investigation_id=payload.investigation_id,
+            max_items_per_source=payload.max_items_per_source,
+            db=db,
+        )
+        return results
+    except Exception as exc:
+        logger.error(f"Error during narrative scraping and verification: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Narrative scraper failed: {exc}",
+        )

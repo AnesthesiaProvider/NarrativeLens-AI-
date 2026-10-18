@@ -168,3 +168,64 @@ export interface EvaluationRun {
   class_names?: string[]
   executed_at: string
 }
+
+export interface ScrapedDocument {
+  title: string
+  url: string
+  publisher: string
+  published_at?: string
+  snippet: string
+  source_type: 'newspaper' | 'social_media' | 'web_magazine'
+  platform: string
+  toxicity?: {
+    label: string
+    confidence: number
+    is_hate: boolean
+    is_offensive: boolean
+  }
+}
+
+export interface GroundedClaim {
+  id: string
+  claim: string
+  verdict: 'verified' | 'debunked' | 'unverified' | 'disputed'
+  confidence: number
+  supporting_sources: { title: string; url: string; publisher?: string }[]
+  contradicting_sources: { title: string; url: string; publisher?: string }[]
+  summary: string
+}
+
+export interface LiveNarrativeReport {
+  query: string
+  investigation_id?: string
+  target_article?: {
+    title: string
+    url: string
+    publisher: string
+    author?: string
+    snippet: string
+  }
+  sources_searched: {
+    newspapers: number
+    social_media: number
+    total_documents: number
+  }
+  verdict_summary: {
+    overall_status: 'verified' | 'debunked' | 'disputed' | 'unverified'
+    truth_score: number
+    status_description: string
+    executive_summary: string
+    verified_facts: string[]
+    debunked_rumors: string[]
+    unresolved_questions: string[]
+    claims: GroundedClaim[]
+  }
+  claims: GroundedClaim[]
+  collected_documents: ScrapedDocument[]
+  toxicity_overview: {
+    hate_count: number
+    offensive_count: number
+    neutral_count: number
+  }
+  analyzed_at: string
+}

@@ -441,3 +441,41 @@ async def list_documents(
         size=size,
         pages=total_pages,
     )
+
+
+class ScrapeNarrativePayload(BaseModel):
+    query: Optional[str] = Field(None, description="Topic, claim, or search term")
+    article_url: Optional[str] = Field(None, description="Direct URL of news or magazine page")
+    investigation_id: Optional[uuid.UUID] = Field(None, description="Target investigation UUID")
+    max_items_per_source: int = Field(8, ge=2, le=30)
+
+
+@router.post(
+    "/scrape-narrative",
+    status_code=status.HTTP_200_OK,
+    summary="Scrape News & Social Media for True Narrative Results",
+)
+async def scrape_narrative_ingestion(
+    payload: ScrapeNarrativePayload,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Scrape web news, magazines, and social media platforms and persist into investigation."""
+    from app.services.narrative_scraper_service import narrative_scraper_service
+
+    query = payload.query or ""
+    article_url = payload.article_url
+
+    if not query.strip() and not article_url:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Either a search query or a news article URL must be provided.",
+        )
+
+    return await narrative_scraper_service.execute_narrative_investigation(
+        query=query,
+        article_url=article_url,
+        investigation_id=payload.investigation_id,
+        max_items_per_source=payload.max_items_per_source,
+        db=db,
+    )
+
