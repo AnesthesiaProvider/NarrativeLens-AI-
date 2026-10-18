@@ -24,6 +24,7 @@ try:
 except ImportError:
     TRAFILATURA_AVAILABLE = False
 
+from app.core.config import settings
 from app.core.security import sanitize_html, sanitize_text, validate_url
 from app.db.models import DataSource, Document, EvidenceCitation, Investigation, NarrativeCluster
 from app.ml.model_manager import model_manager
@@ -249,6 +250,41 @@ class NarrativeScraperService:
                         })
         except Exception as exc:
             logger.warning(f"Error fetching HackerNews for '{query}': {exc}")
+
+        # 3. YouTube Data API v3 (if configured)
+        if settings.YOUTUBE_API_KEY:
+            try:
+                yt_max = max(3, limit // 3)
+                yt_url = (
+                    f"https://www.googleapis.com/youtube/v3/search"
+                    f"?part=snippet&q={encoded_query}&type=video&maxResults={yt_max}&key={settings.YOUTUBE_API_KEY}"
+                )
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    r_yt = await client.get(yt_url)
+                    if r_yt.status_code == 200:
+                        items = r_yt.json().get("items", [])
+                        for item in items:
+                            vid_id = item.get("id", {}).get("videoId")
+                            snippet = item.get("snippet", {})
+                            title = snippet.get("title", "")
+                            channel_title = snippet.get("channelTitle", "YouTube Channel")
+                            desc = snippet.get("description", "")
+                            published = snippet.get("publishedAt", "")
+                            video_url = f"https://www.youtube.com/watch?v={vid_id}" if vid_id else "https://www.youtube.com"
+
+                            results.append({
+                                "title": title,
+                                "url": video_url,
+                                "publisher": f"YouTube ({channel_title})",
+                                "published_at": published,
+                                "snippet": f"{title} - {desc}"[:350],
+                                "source_type": "social_media",
+                                "platform": "YouTube Community",
+                            })
+                    else:
+                        logger.warning(f"YouTube Data API returned HTTP {r_yt.status_code}: {r_yt.text[:120]}")
+            except Exception as exc:
+                logger.warning(f"Error querying YouTube Data API for '{query}': {exc}")
 
         return results
 

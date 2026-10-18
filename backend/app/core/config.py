@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 50
 
+    # External APIs & Social Media
+    YOUTUBE_API_KEY: Optional[str] = None
+
     # Security & SSRF Protection
     BLOCKED_IP_NETWORKS: List[str] = [
         "127.0.0.0/8",
