@@ -309,6 +309,17 @@ async def analyze_image(
     companion_text = text or caption or (payload.text if payload else "") or ""
     combined_text = f"{extracted_ocr} {companion_text}".strip()
 
+    # 2b. Visual Zero-Shot Image Classification via CLIP ViT-B/32
+    clip_probs = model_manager.predict_multimodal(image_bytes)
+    clip_hate_prob = (
+        clip_probs.get("a hateful offensive meme or slur", 0.0)
+        + clip_probs.get("a hostile propaganda graphic", 0.0)
+    ) if clip_probs else 0.0
+    top_clip_label = (
+        max(clip_probs.items(), key=lambda kv: kv[1])[0]
+        if clip_probs else None
+    )
+
     # If text is present, run our fine-tuned XLM-RoBERTa model
     if combined_text:
         pred = model_manager.predict_hate_speech(combined_text, explain=True)
@@ -319,37 +330,67 @@ async def analyze_image(
         probs = _build_probabilities(raw_probs)
         explanation_data = pred.get("explanation")
         flagged_tokens = _extract_flagged_tokens(explanation_data)
+        
+        # If visual CLIP strongly detects hostile propaganda/hate graphic, reinforce hate score
+        if clip_hate_prob >= 0.50 and std_label == "Neutral":
+            std_label = "Offensive"
+            probs["Offensive"] = max(probs["Offensive"], round(clip_hate_prob, 4))
+            probs["Neutral"] = round(1.0 - probs["Offensive"], 4)
     else:
-        # Image without detectable text
-        std_label = "Neutral"
-        confidence = 0.94
-        probs = {
-            "Hate Speech": 0.02,
-            "Offensive": 0.04,
-            "Neutral": 0.94,
-            "hate": 0.02,
-            "offensive": 0.04,
-            "normal": 0.94,
-        }
+        # Image without detectable text - rely on CLIP visual evaluation
+        if clip_hate_prob >= 0.60:
+            std_label = "Hate Speech"
+            confidence = round(clip_hate_prob, 4)
+            probs = {
+                "Hate Speech": confidence,
+                "Offensive": round(clip_probs.get("a hostile propaganda graphic", 0.15), 4),
+                "Neutral": round(max(0.01, 1.0 - confidence), 4),
+                "hate": confidence,
+                "offensive": round(clip_probs.get("a hostile propaganda graphic", 0.15), 4),
+                "normal": round(max(0.01, 1.0 - confidence), 4),
+            }
+        elif clip_hate_prob >= 0.35:
+            std_label = "Offensive"
+            confidence = round(clip_hate_prob, 4)
+            probs = {
+                "Hate Speech": 0.15,
+                "Offensive": confidence,
+                "Neutral": round(max(0.01, 1.0 - confidence - 0.15), 4),
+                "hate": 0.15,
+                "offensive": confidence,
+                "normal": round(max(0.01, 1.0 - confidence - 0.15), 4),
+            }
+        else:
+            std_label = "Neutral"
+            confidence = 0.94 if not clip_probs else round(max(clip_probs.values()), 4)
+            probs = {
+                "Hate Speech": 0.02,
+                "Offensive": 0.04,
+                "Neutral": 0.94,
+                "hate": 0.02,
+                "offensive": 0.04,
+                "normal": 0.94,
+            }
         explanation_data = None
         flagged_tokens = []
 
-    # Multimodal explanation
+    # Multimodal explanation combining OCR + CLIP
+    clip_note = f" Visual zero-shot classifier (CLIP ViT-B/32) categorized graphic as '{top_clip_label}'." if top_clip_label else ""
     if extracted_ocr:
         explanation_summary = (
             f"EasyOCR extracted {len(ocr_segments)} textual element(s). "
-            f"Multimodal hate analysis classified content as '{std_label}' ({round(confidence * 100, 1)}% confidence)."
+            f"Multimodal analysis classified content as '{std_label}' ({round(confidence * 100, 1)}% confidence).{clip_note}"
         )
     else:
         explanation_summary = (
-            "No legible text overlay detected in image. Visual graphic classified as neutral/benign."
+            f"No legible text overlay detected in image.{clip_note} Visual graphic classified as '{std_label}'."
         )
 
     # Safety ratings calculated based on model output
     hate_score = probs["Hate Speech"]
     off_score = probs["Offensive"]
     safety_ratings = {
-        "hate_symbol": "HIGH" if hate_score >= 0.45 else ("MEDIUM" if hate_score >= 0.20 else "LOW"),
+        "hate_symbol": "HIGH" if (hate_score >= 0.45 or clip_hate_prob >= 0.55) else ("MEDIUM" if (hate_score >= 0.20 or clip_hate_prob >= 0.30) else "LOW"),
         "harassment": "HIGH" if (hate_score + off_score) >= 0.50 else "LOW",
         "violence": "ELEVATED" if any(w in combined_text.lower() for w in ["kill", "attack", "die", "destroy", "maar"]) else "NEGLIGIBLE",
     }
@@ -357,6 +398,8 @@ async def analyze_image(
     detected_objects = ["Digital Image"]
     if extracted_ocr:
         detected_objects.extend(["Text Banner", "Typography Overlay"])
+    if top_clip_label and clip_probs:
+        detected_objects.append(f"Visual: {top_clip_label} ({round(clip_probs[top_clip_label]*100, 1)}%)")
     if width > 0 and height > 0:
         detected_objects.append(f"{width}x{height} Resolution")
 

@@ -75,7 +75,7 @@ def _get_model_map() -> dict:
     model_labels = {
         "hate_speech": "XLM-RoBERTa Hate Speech",
         "embedding": "BGE-M3 Multilingual Embedding",
-        "multimodal": "Qwen3-VL Multimodal",
+        "multimodal": "CLIP ViT-B/32 Multimodal",
     }
     res = {}
     for item in summary.models:
@@ -122,3 +122,35 @@ async def get_models_status() -> ModelStatusResponse:
 async def get_models() -> dict:
     """Return model dictionary for UI navigation and inspection."""
     return _get_model_map()
+
+
+@router.post(
+    "/models/{model_key}/load",
+    status_code=status.HTTP_200_OK,
+    summary="Load ML Model into Memory/GPU",
+)
+async def load_model_endpoint(model_key: str) -> dict:
+    """Manually load a model into memory/VRAM."""
+    success = model_manager.load_model(model_key)
+    return {
+        "model_key": model_key,
+        "loaded": success,
+        "status": model_manager._model_metadata.get(model_key, {}).get("status", "unknown"),
+        "models": _get_model_map(),
+    }
+
+
+@router.post(
+    "/models/{model_key}/unload",
+    status_code=status.HTTP_200_OK,
+    summary="Unload ML Model from Memory/GPU",
+)
+async def unload_model_endpoint(model_key: str) -> dict:
+    """Manually unload a model from memory/VRAM to free resources."""
+    success = model_manager.unload_model(model_key)
+    return {
+        "model_key": model_key,
+        "unloaded": success,
+        "status": model_manager._model_metadata.get(model_key, {}).get("status", "uninitialized"),
+        "models": _get_model_map(),
+    }

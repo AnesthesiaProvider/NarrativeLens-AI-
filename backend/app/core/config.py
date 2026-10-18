@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     MODEL_CACHE_DIR: str = "./model_cache"
     HATE_SPEECH_MODEL_ID: str = "FacebookAI/xlm-roberta-base"
     EMBEDDING_MODEL_ID: str = "BAAI/bge-m3"
-    MULTIMODAL_MODEL_ID: str = "Qwen/Qwen3-VL-4B-Instruct"
+    MULTIMODAL_MODEL_ID: str = "openai/clip-vit-base-patch32"
     CLASSIFIER_CHECKPOINT_PATH: str = "ml/checkpoints/xlm-roberta-hate-speech"
     CLASSIFIER_NUM_LABELS: int = 3
     CLASSIFIER_LABELS: List[str] = ["normal", "offensive", "hate"]

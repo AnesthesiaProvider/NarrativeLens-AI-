@@ -484,6 +484,58 @@ class ModelManager:
         }
 
 
+    def predict_multimodal(
+        self, image: Any, candidate_labels: Optional[List[str]] = None
+    ) -> Optional[Dict[str, float]]:
+        """
+        Run zero-shot visual classification using CLIP ViT-B/32 on an image.
+        Returns label-to-probability mapping.
+        """
+        model = self.get_model("multimodal")
+        processor = self.get_tokenizer("multimodal")
+        if model is None or processor is None:
+            return None
+
+        try:
+            import io
+            import torch
+            from PIL import Image
+
+            if isinstance(image, bytes):
+                img = Image.open(io.BytesIO(image)).convert("RGB")
+            elif isinstance(image, Image.Image):
+                img = image.convert("RGB")
+            else:
+                return None
+
+            labels = candidate_labels or [
+                "a hateful offensive meme or slur",
+                "a hostile propaganda graphic",
+                "a humorous benign meme",
+                "a neutral photograph or graphic",
+            ]
+
+            inputs = processor(
+                text=labels,
+                images=img,
+                return_tensors="pt",
+                padding=True,
+            )
+            inputs = {k: v.to(self.device_str) for k, v in inputs.items()}
+
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits_per_image = outputs.logits_per_image
+                probs = logits_per_image.softmax(dim=1).squeeze().tolist()
+
+            if isinstance(probs, float):
+                probs = [probs]
+
+            return {lbl: round(float(p), 4) for lbl, p in zip(labels, probs)}
+        except Exception as exc:
+            logger.warning(f"Error during CLIP zero-shot prediction: {exc}")
+            return None
+
     def get_status_summary(self) -> ModelStatusResponse:
         """Return the overall status across all registered models."""
         items: List[ModelStatusItem] = []

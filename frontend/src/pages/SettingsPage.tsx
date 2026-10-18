@@ -11,6 +11,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useHealth, useModelStatus } from '@/hooks/useHealth'
+import { api } from '@/lib/api'
 import { StatusBadge } from '@/components/StatusBadge'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import type { ModelStatus } from '@/types'
@@ -52,12 +53,26 @@ const DEFAULT_MODELS: Record<string, ModelStatus> = {
 
 export const SettingsPage: React.FC = () => {
   const { data: health, isLoading: isHealthLoading, refetch: refetchHealth } = useHealth()
-  const { data: remoteModels, isLoading: isModelsLoading } = useModelStatus()
+  const { data: remoteModels, isLoading: isModelsLoading, refetch: refetchModels } = useModelStatus()
 
   const [hateThreshold, setHateThreshold] = useState(0.85)
   const [maxConcurrency, setMaxConcurrency] = useState(8)
   const [enableTelemetry, setEnableTelemetry] = useState(true)
   const [savedSettings, setSavedSettings] = useState(false)
+  const [loadingModelKey, setLoadingModelKey] = useState<string | null>(null)
+
+  const handleToggleModel = async (key: string, isCurrentlyLoaded: boolean) => {
+    try {
+      setLoadingModelKey(key)
+      const action = isCurrentlyLoaded ? 'unload' : 'load'
+      await api.post(`/models/${key}/${action}`)
+      await Promise.all([refetchHealth(), refetchModels()])
+    } catch (err) {
+      console.error(`Failed to ${isCurrentlyLoaded ? 'unload' : 'load'} model ${key}:`, err)
+    } finally {
+      setLoadingModelKey(null)
+    }
+  }
 
   const models: Record<string, ModelStatus> =
     remoteModels && Object.keys(remoteModels).length > 0 ? remoteModels : DEFAULT_MODELS
@@ -194,6 +209,31 @@ export const SettingsPage: React.FC = () => {
                     {model.latency_ms || 45} ms
                   </span>
                 </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                <span className="text-[11px] text-slate-400">
+                  {model.status === 'loaded' || model.status === 'ready'
+                    ? 'Active in GPU memory'
+                    : 'Standby / Lazy-load'}
+                </span>
+                <button
+                  type="button"
+                  disabled={loadingModelKey === key}
+                  onClick={() => handleToggleModel(key, model.status === 'loaded' || model.status === 'ready')}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 ${
+                    model.status === 'loaded' || model.status === 'ready'
+                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900'
+                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800'
+                  }`}
+                >
+                  {loadingModelKey === key ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Zap className="w-3 h-3" />
+                  )}
+                  {model.status === 'loaded' || model.status === 'ready' ? 'Unload from VRAM' : 'Load into VRAM'}
+                </button>
               </div>
             </div>
           ))}
