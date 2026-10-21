@@ -19,6 +19,7 @@ import {
   X,
   Layers,
   Activity,
+  Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Narrative Explorer', to: '/narratives', icon: Compass },
   { name: 'Hate Speech Analysis', to: '/analysis/text', icon: ShieldAlert },
   { name: 'Meme & Image Analysis', to: '/analysis/meme', icon: ImageIcon },
+  { name: 'Universal Web Scanner', to: '/scanner', icon: Globe },
   { name: 'Coordination Analysis', to: '/coordination', icon: Users },
   { name: 'Evidence Explorer', to: '/evidence', icon: FileSearch },
   { name: 'Model Evaluation', to: '/evaluation', icon: BarChart3 },

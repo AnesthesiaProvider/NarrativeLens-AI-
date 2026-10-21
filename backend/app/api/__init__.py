@@ -10,6 +10,7 @@ from app.api.health import router as health_router
 from app.api.ingestion import router as ingestion_router
 from app.api.investigations import router as investigations_router
 from app.api.narratives import router as narratives_router
+from app.api.scanner import router as scanner_router
 
 api_router = APIRouter()
 
@@ -18,6 +19,7 @@ api_router.include_router(health_router)
 api_router.include_router(investigations_router)
 api_router.include_router(analysis_router)
 api_router.include_router(analyze_router)
+api_router.include_router(scanner_router)
 api_router.include_router(ingestion_router)
 api_router.include_router(narratives_router)
 api_router.include_router(coordination_router)

@@ -71,6 +71,15 @@ class Settings(BaseSettings):
     # External APIs & Social Media
     YOUTUBE_API_KEY: Optional[str] = None
 
+    # Reddit API (PRAW) — get credentials at https://www.reddit.com/prefs/apps
+    REDDIT_CLIENT_ID: Optional[str] = None
+    REDDIT_CLIENT_SECRET: Optional[str] = None
+    REDDIT_USER_AGENT: str = "NarrativeLens:v1.0 (by /u/NarrativeLensAI)"
+
+    # Telegram API — get credentials at https://my.telegram.org
+    TELEGRAM_API_ID: Optional[str] = None
+    TELEGRAM_API_HASH: Optional[str] = None
+
     # Local LLM Context Arbiter (Ollama)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2:3b"
