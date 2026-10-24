@@ -8,6 +8,7 @@ StandardDocuments for fine-grained toxicity and hate speech scanning.
 from __future__ import annotations
 
 import logging
+import re
 import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -32,6 +33,26 @@ try:
     NEWSPAPER_AVAILABLE = True
 except ImportError:
     NEWSPAPER_AVAILABLE = False
+
+
+RE_MARKDOWN_IMAGE = re.compile(r"!\[.*?\]\(.*?\)")
+RE_MARKDOWN_LINK = re.compile(r"\[([^\]]+)\]\([^\)]+\)")
+RE_WIKI_CITATIONS = re.compile(r"\[(?:edit|\d+|citation needed)\]", re.IGNORECASE)
+
+
+def _clean_article_text(raw_text: str) -> str:
+    """Strip markdown images, wiki citations, and link syntax to leave clean prose."""
+    if not raw_text:
+        return ""
+    # Remove markdown image embeds: ![alt](url)
+    text = RE_MARKDOWN_IMAGE.sub("", raw_text)
+    # Remove wiki citation markers: [1], [edit], [citation needed]
+    text = RE_WIKI_CITATIONS.sub("", text)
+    # Convert markdown links [Text](url) to just Text
+    text = RE_MARKDOWN_LINK.sub(r"\1", text)
+    # Clean whitespace
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    return "\n".join(lines).strip()
 
 
 class WebScraper(BaseScraper):
@@ -126,7 +147,7 @@ class WebScraper(BaseScraper):
                         image_urls.append(extracted.image)
 
                     if extracted.text:
-                        raw_paras = [p.strip() for p in extracted.text.split("\n\n")]
+                        raw_paras = [_clean_article_text(p) for p in extracted.text.split("\n\n")]
                         paragraphs = [p for p in raw_paras if len(p) >= 25]
             except Exception as exc:
                 logger.debug(f"Trafilatura extraction skipped: {exc}")
@@ -180,9 +201,17 @@ class WebScraper(BaseScraper):
                     if b:
                         img_bytes_list.append(b)
 
-        # Domain/Publisher
+        # Domain/Publisher and Author resolution
         parsed_url = urllib.parse.urlparse(final_url)
         publisher = parsed_url.netloc.replace("www.", "")
+
+        if "wikipedia.org" in final_url.lower():
+            author = "Wikipedia Contributors"
+        elif len(author) > 40 or any(
+            bad in author.lower()
+            for bad in ["authority control", "database", "navbox", "sidebar", "cookie", "category", "international"]
+        ):
+            author = publisher
 
         # Create Main Document (Full text or first 3 paragraphs)
         lead_text = "\n\n".join(paragraphs[:3]) if paragraphs else title
@@ -192,7 +221,7 @@ class WebScraper(BaseScraper):
             doc_type="article",
             title=title,
             text=lead_text,
-            author=f"{author} ({publisher})" if author != "Anonymous" else publisher,
+            author=author,
             image_urls=image_urls,
             image_bytes_list=img_bytes_list,
             language=language,

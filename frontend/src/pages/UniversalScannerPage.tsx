@@ -439,11 +439,17 @@ export const UniversalScannerPage: React.FC = () => {
                     {/* Tokens / Explainability */}
                     {item.explanation_tokens && item.explanation_tokens.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
-                        <span className="text-slate-400 font-medium">Flagged tokens:</span>
+                        <span className="text-slate-400 font-medium">
+                          {item.is_hate || item.is_offensive ? 'Flagged hostile tokens:' : 'Salient tokens:'}
+                        </span>
                         {item.explanation_tokens.map((tok, i) => (
                           <span
                             key={i}
-                            className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-mono text-[10px]"
+                            className={`px-1.5 py-0.5 rounded font-mono text-[10px] ${
+                              item.is_hate || item.is_offensive
+                                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                            }`}
                           >
                             {tok.token} ({tok.score})
                           </span>

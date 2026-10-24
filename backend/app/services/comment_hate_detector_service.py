@@ -3,6 +3,7 @@ detecting hate speech and toxic patterns, and generating actionable 'Need to Kno
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import urllib.parse
@@ -252,20 +253,21 @@ class CommentHateDetectorService:
                 is_hate = False
                 is_offensive = False
 
-            # Extract top contributing tokens for explainability
+            # Extract top contributing tokens for explainability (only for flagged items)
             tokens = []
-            exp = pred.get("explanation", {})
-            if isinstance(exp, dict):
-                features = exp.get("top_features") or exp.get("tokens") or []
-                for item in features[:5]:
-                    if isinstance(item, dict):
-                        token_str = item.get("token") or item.get("text", "")
-                        score = item.get("score", 0.0)
-                    else:
-                        token_str = str(item)
-                        score = 0.5
-                    if token_str and not token_str.startswith("<") and not token_str.isspace():
-                        tokens.append({"token": token_str.strip(), "score": round(float(score), 3)})
+            if is_hate or is_offensive:
+                exp = pred.get("explanation", {})
+                if isinstance(exp, dict):
+                    features = exp.get("top_features") or exp.get("tokens") or []
+                    for item in features[:5]:
+                        if isinstance(item, dict):
+                            token_str = item.get("token") or item.get("text", "")
+                            score = item.get("score", 0.0)
+                        else:
+                            token_str = str(item)
+                            score = 0.5
+                        if token_str and not token_str.startswith("<") and not token_str.isspace():
+                            tokens.append({"token": token_str.strip(), "score": round(float(score), 3)})
 
             return {
                 "label": label,
