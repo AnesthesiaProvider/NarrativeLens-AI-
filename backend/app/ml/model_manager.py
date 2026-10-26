@@ -421,7 +421,30 @@ class ModelManager:
                     id2label.get(i, f"class_{i}"): round(float(prob), 4)
                     for i, prob in enumerate(probs)
                 }
-                predicted_idx = int(max(range(len(probs)), key=lambda i: probs[i]))
+
+                # Apply calibrated decision thresholds if available
+                # y_pred = argmax_c ( P(c) / tau_c )
+                calibrated_thresholds = {"normal": 0.3306, "offensive": 0.3444, "hate": 0.3251}
+                try:
+                    cal_path = os.path.join(
+                        os.path.dirname(settings.CLASSIFIER_CHECKPOINT_PATH or ""),
+                        "calibrated_thresholds.json"
+                    )
+                    if os.path.exists(cal_path):
+                        import json
+                        with open(cal_path, "r", encoding="utf-8") as f:
+                            c_data = json.load(f)
+                            if "optimal_thresholds" in c_data:
+                                calibrated_thresholds = c_data["optimal_thresholds"]
+                except Exception:
+                    pass
+
+                # Scaled scores
+                scaled_scores = [
+                    probs[i] / calibrated_thresholds.get(id2label.get(i, "normal"), 1.0)
+                    for i in range(len(probs))
+                ]
+                predicted_idx = int(max(range(len(scaled_scores)), key=lambda i: scaled_scores[i]))
                 predicted_label = id2label.get(predicted_idx, "normal")
                 confidence = float(probs[predicted_idx])
 
