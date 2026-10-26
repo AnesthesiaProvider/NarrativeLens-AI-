@@ -42,6 +42,8 @@ from transformers import (
     set_seed as hf_set_seed,
 )
 
+from ml.training.focal_loss import FocalLoss
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -63,6 +65,21 @@ def set_all_seeds(seed: int = 42) -> None:
         torch.cuda.manual_seed_all(seed)
     hf_set_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
+
+
+class FocalLossTrainer(Trainer):
+    """Custom Trainer subclass using Class-Weighted Focal Loss instead of standard Cross-Entropy."""
+
+    def __init__(self, *args, focal_gamma: float = 2.0, class_weights: Optional[torch.Tensor] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.focal_loss_fn = FocalLoss(gamma=focal_gamma, weight=class_weights)
+
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.logits
+        loss = self.focal_loss_fn(logits, labels)
+        return (loss, outputs) if return_outputs else loss
 
 
 class MetricsLoggingCallback(TrainerCallback):
@@ -325,8 +342,17 @@ def main() -> None:
     metrics_cb = MetricsLoggingCallback()
     early_stop_cb = EarlyStoppingCallback(early_stopping_patience=2)
 
-    # 5. Trainer Setup
-    trainer = Trainer(
+    # 4b. Compute inverse frequency class weights to balance gradient signals
+    train_labels = train_df["label"].tolist()
+    class_counts = np.bincount(train_labels, minlength=3)
+    total_samples = len(train_labels)
+    # Balanced weights: total / (num_classes * count)
+    weights = total_samples / (3.0 * class_counts)
+    class_weights_tensor = torch.tensor(weights, dtype=torch.float32)
+    logger.info(f"Computed Focal Loss class weights: normal={weights[0]:.3f}, offensive={weights[1]:.3f}, hate={weights[2]:.3f}")
+
+    # 5. Trainer Setup with Focal Loss
+    trainer = FocalLossTrainer(
         model=model,
         args=training_args,
         train_dataset=train_tokenized,
@@ -335,6 +361,8 @@ def main() -> None:
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         callbacks=[metrics_cb, early_stop_cb],
+        focal_gamma=2.0,
+        class_weights=class_weights_tensor,
     )
 
     # 6. Execute Training
