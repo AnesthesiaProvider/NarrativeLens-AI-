@@ -22,6 +22,10 @@ Rather than treating toxic language as isolated keywords or purely binary classi
 ## ✨ Key Features
 
 - 🌐 **Multilingual Cross-Lingual Detection**: Fine-tuned on `FacebookAI/xlm-roberta-base` on 16,138 real annotated samples with multi-class taxonomy (`Hate Speech`, `Offensive`, `Neutral`).
+- 🎯 **Multi-Attribute Enrichment (Milestone 1)**: Identifies targeted demographic groups (Religion, Race/Ethnicity, Gender, Sexual Orientation, Nationality, Disability, Political, Socioeconomic) and categorizes harm types (Slur, Dehumanization, Incitement to Violence, Harassment, Stereotype Reinforcement).
+- ⚖️ **Calibrated Severity Engine**: Generates composite severity scores (0–100%) and actionable moderation policies (`AUTO_REMOVE`, `ESCALATE_TO_HUMAN_REVIEW`, `FLAG_FOR_REVIEW`, `MANUAL_REVIEW`) with calibrated decision thresholds to eliminate false positives.
+- 🤖 **Local Ollama LLM Context Arbiter (Milestone 2)**: Offline contextual intent arbitration using local LLMs (`llama3.2:3b` / `qwen3:4b`) to evaluate sarcasm, cultural context, and identify targeted groups without external API costs or data leakage.
+- 🌍 **Universal Multi-Platform Scraping**: Direct auditing of live URLs and public threads across 4chan catalogs (`/pol/`, `/news/`), Reddit (PRAW), Twitter/X, and clean web news/Wikipedia articles with markdown-sanitized paragraph extraction.
 - 🖼️ **GPU-Accelerated Multimodal Meme OCR**: Integrated `EasyOCR` GPU pipeline extracting text overlays from memes and fusing with contextual hate classification and vision safety ratings.
 - 🎯 **Captum Integrated Gradients Explainability**: Token-level saliency attribution quantifying exact lexical triggers with mathematical gradients.
 - 🧬 **Dense Narrative Clustering**: High-dimensional semantic embeddings via `BAAI/bge-m3` combined with PostgreSQL `pgvector` HNSW indexing to uncover emergent narrative clusters and coordinated disinformation campaigns.
