@@ -28,6 +28,7 @@ from app.schemas.analysis import (
     TextAnalysisResponse,
     VisionResults,
 )
+from app.schemas.enrichment import EnrichedAnalysis, HarmTypeResult, SeverityRating, TargetGroupResult
 from app.services.ocr_service import ocr_service
 
 logger = logging.getLogger(__name__)
@@ -109,8 +110,8 @@ async def analyze_text(payload: TextAnalysisRequest) -> TextAnalysisResponse:
             detail="Provided text content is empty or contains only unprintable characters.",
         )
 
-    # Execute inference via model manager with Integrated Gradients attribution
-    prediction = model_manager.predict_hate_speech(cleaned_text, explain=payload.explain)
+    # Execute inference + multi-attribute enrichment
+    prediction = model_manager.predict_hate_speech_enriched(cleaned_text, explain=payload.explain)
 
     raw_label = prediction.get("predicted_label", "normal")
     std_label = _standardize_label(raw_label)
@@ -120,6 +121,35 @@ async def analyze_text(payload: TextAnalysisRequest) -> TextAnalysisResponse:
     explanation_data = prediction.get("explanation")
     flagged_tokens = _extract_flagged_tokens(explanation_data)
     explanation_summary = _generate_explanation_text(std_label, confidence, flagged_tokens)
+
+    # Build enriched analysis object from pipeline output
+    enriched_raw = prediction.get("enriched", {})
+    enriched_obj: Optional[EnrichedAnalysis] = None
+    if enriched_raw:
+        try:
+            enriched_obj = EnrichedAnalysis(
+                target_group=TargetGroupResult(**enriched_raw["target_group"]),
+                harm_type=HarmTypeResult(**enriched_raw["harm_type"]),
+                severity=SeverityRating(**enriched_raw["severity"]),
+                is_below_threshold=enriched_raw.get("is_below_threshold", False),
+                threshold_used=enriched_raw.get("threshold_used", 0.0),
+            )
+        except Exception as exc:
+            logger.debug(f"Could not build EnrichedAnalysis object: {exc}")
+
+    # Override explanation_summary with actionable enriched context when available
+    if enriched_obj and (std_label in ("Hate Speech", "Offensive")):
+        tg_label = enriched_obj.target_group.label
+        ht_label = enriched_obj.harm_type.label
+        sv_level = enriched_obj.severity.level
+        sv_action = enriched_obj.severity.recommended_action
+        if tg_label != "None":
+            explanation_summary = (
+                f"{explanation_summary} "
+                f"Target: {tg_label}"
+                f"{f' ({enriched_obj.target_group.detail})' if enriched_obj.target_group.detail else ''}. "
+                f"Harm type: {ht_label}. Severity: {sv_level} → {sv_action}."
+            )
 
     classification_detail = ClassificationDetail(
         label=std_label,
@@ -143,6 +173,7 @@ async def analyze_text(payload: TextAnalysisRequest) -> TextAnalysisResponse:
         is_available=prediction.get("is_available", True),
         processed_at=datetime.now(timezone.utc),
         created_at=datetime.now(timezone.utc).isoformat(),
+        enriched=enriched_obj,
     )
 
 
@@ -174,7 +205,7 @@ async def analyze_batch(payload: BatchAnalysisRequest) -> BatchAnalysisResponse:
                 failed += 1
                 continue
 
-            prediction = model_manager.predict_hate_speech(cleaned, explain=payload.explain)
+            prediction = model_manager.predict_hate_speech_enriched(cleaned, explain=payload.explain)
             raw_label = prediction.get("predicted_label", "normal")
             std_label = _standardize_label(raw_label)
             confidence = float(prediction.get("confidence", 0.90))
@@ -183,6 +214,20 @@ async def analyze_batch(payload: BatchAnalysisRequest) -> BatchAnalysisResponse:
             explanation_data = prediction.get("explanation")
             flagged_tokens = _extract_flagged_tokens(explanation_data)
             explanation_summary = _generate_explanation_text(std_label, confidence, flagged_tokens)
+
+            enriched_raw = prediction.get("enriched", {})
+            batch_enriched: Optional[EnrichedAnalysis] = None
+            if enriched_raw:
+                try:
+                    batch_enriched = EnrichedAnalysis(
+                        target_group=TargetGroupResult(**enriched_raw["target_group"]),
+                        harm_type=HarmTypeResult(**enriched_raw["harm_type"]),
+                        severity=SeverityRating(**enriched_raw["severity"]),
+                        is_below_threshold=enriched_raw.get("is_below_threshold", False),
+                        threshold_used=enriched_raw.get("threshold_used", 0.0),
+                    )
+                except Exception:
+                    pass
 
             item_response = TextAnalysisResponse(
                 id=item.id or f"analysis-{uuid.uuid4().hex[:12]}",
@@ -204,6 +249,7 @@ async def analyze_batch(payload: BatchAnalysisRequest) -> BatchAnalysisResponse:
                 is_available=prediction.get("is_available", True),
                 processed_at=datetime.now(timezone.utc),
                 created_at=datetime.now(timezone.utc).isoformat(),
+                enriched=batch_enriched,
             )
             results.append(BatchItemResponse(id=item.id, result=item_response, error=None))
             successful += 1

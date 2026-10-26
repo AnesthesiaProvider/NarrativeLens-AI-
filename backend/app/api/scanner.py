@@ -55,6 +55,13 @@ class ScannedItemResult(BaseModel):
     is_offensive: bool
     explanation_tokens: List[Dict[str, Any]] = []
 
+    # Multi-attribute enrichment
+    target_group: Optional[Dict[str, Any]] = None
+    harm_type: Optional[Dict[str, Any]] = None
+    severity: Optional[Dict[str, Any]] = None
+    is_below_threshold: bool = False
+    recommended_action: Optional[str] = None
+
     # LLM reasoning (if available)
     llm_reasoning: Optional[Dict[str, Any]] = None
 
@@ -126,8 +133,20 @@ _detector = CommentHateDetectorService()
 
 
 def _classify_text(text: str) -> Dict[str, Any]:
-    """Classify a text segment using the shared CommentHateDetectorService logic."""
-    return _detector._classify_text(text)
+    """Classify a text segment using enriched hate speech detection pipeline."""
+    result = _detector._classify_text(text)
+    # Attach enrichment via model manager's enriched prediction
+    try:
+        from app.ml.enrichment.enrichment_pipeline import enrich_prediction
+        raw_pred = {
+            "predicted_label": result.get("raw_label", "normal"),
+            "confidence": result.get("confidence", 0.0),
+        }
+        enriched = enrich_prediction(text, raw_pred)
+        result["enriched"] = enriched
+    except Exception:
+        result["enriched"] = None
+    return result
 
 
 async def _llm_enrich(title: str, text: str, label: str) -> Optional[Dict[str, Any]]:
@@ -282,6 +301,15 @@ async def universal_scan(payload: UniversalScanRequest) -> UniversalScanResponse
             is_hate=eval_res["is_hate"],
             is_offensive=eval_res["is_offensive"],
             explanation_tokens=eval_res.get("explanation_tokens", []),
+            # Multi-attribute enrichment fields
+            target_group=eval_res.get("enriched", {}).get("target_group") if eval_res.get("enriched") else None,
+            harm_type=eval_res.get("enriched", {}).get("harm_type") if eval_res.get("enriched") else None,
+            severity=eval_res.get("enriched", {}).get("severity") if eval_res.get("enriched") else None,
+            is_below_threshold=eval_res.get("enriched", {}).get("is_below_threshold", False) if eval_res.get("enriched") else False,
+            recommended_action=(
+                eval_res.get("enriched", {}).get("severity", {}).get("recommended_action")
+                if eval_res.get("enriched") else None
+            ),
             has_images=has_images,
             image_classification=image_result,
             subreddit=doc.subreddit,

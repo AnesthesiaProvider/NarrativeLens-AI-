@@ -1,5 +1,36 @@
 export type InvestigationStatus = 'draft' | 'running' | 'active' | 'completed' | 'archived' | 'failed'
 
+// ---------------------------------------------------------------------------
+// Multi-attribute enrichment types (Milestone 1)
+// ---------------------------------------------------------------------------
+
+export interface TargetGroupResult {
+  label: string         // e.g. "Religion", "Race/Ethnicity", "None"
+  detail: string | null // e.g. "Muslim", "Jewish", "LGBTQ+"
+  confidence: number    // 0–1 signal density score
+}
+
+export interface HarmTypeResult {
+  label: string     // e.g. "Dehumanization", "Incitement to Violence", "None"
+  confidence: number
+}
+
+export interface SeverityRating {
+  level: string              // "CRITICAL" | "SEVERE" | "MODERATE" | "LOW" | "MINIMAL"
+  score: number              // 0–1 composite score
+  recommended_action: string // "AUTO_REMOVE" | "ESCALATE_TO_HUMAN_REVIEW" | etc.
+}
+
+export interface EnrichedAnalysis {
+  target_group: TargetGroupResult
+  harm_type: HarmTypeResult
+  severity: SeverityRating
+  is_below_threshold: boolean
+  threshold_used: number
+}
+
+// ---------------------------------------------------------------------------
+
 export interface Investigation {
   id: string
   title: string
@@ -78,7 +109,16 @@ export interface AnalysisRequest {
 export interface AnalysisResponse {
   id: string
   text?: string
+  predicted_label?: string
+  confidence?: number
+  class_probabilities?: Record<string, number>
+  explanation?: any
   classification: ClassificationResult
+  model_id?: string
+  model_version?: string
+  is_available?: boolean
+  processed_at?: string
+  created_at: string
   ocr_text?: string
   vision_results?: {
     description?: string
@@ -86,7 +126,7 @@ export interface AnalysisResponse {
     safety_ratings?: Record<string, string>
   }
   coordination_score?: number
-  created_at: string
+  enriched?: EnrichedAnalysis | null
 }
 
 export interface ModelStatus {

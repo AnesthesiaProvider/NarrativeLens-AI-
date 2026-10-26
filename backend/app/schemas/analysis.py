@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
+from app.schemas.enrichment import EnrichedAnalysis
+
 
 class TokenAttribution(BaseModel):
     """Token or feature importance score from model explanation."""
@@ -74,6 +76,13 @@ class TextAnalysisResponse(BaseModel):
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO formatted timestamp",
+    )
+    enriched: Optional[EnrichedAnalysis] = Field(
+        None,
+        description=(
+            "Multi-attribute enrichment: target group, harm type, severity rating, "
+            "and calibrated confidence threshold result."
+        ),
     )
 
 

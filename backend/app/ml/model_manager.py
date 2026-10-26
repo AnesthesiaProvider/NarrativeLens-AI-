@@ -484,6 +484,49 @@ class ModelManager:
         }
 
 
+    def predict_hate_speech_enriched(
+        self, text: str, explain: bool = False
+    ) -> Dict[str, Any]:
+        """Run hate speech classification AND multi-attribute enrichment.
+
+        Calls predict_hate_speech() for the raw 3-class prediction, then
+        runs the enrichment pipeline (Layers 2–4) to add:
+          - target_group: which protected demographic is being targeted
+          - harm_type: type of harm (slur, dehumanization, incitement, etc.)
+          - severity: composite severity tier and recommended moderation action
+          - is_below_threshold: True when confidence is below calibrated threshold
+          - threshold_used: the calibrated decision threshold applied
+
+        Args:
+            text:    Input text (max 512 chars recommended).
+            explain: If True, run Captum token attribution.
+
+        Returns:
+            Merged dict containing all predict_hate_speech() keys plus
+            an 'enriched' key holding the multi-attribute metadata.
+        """
+        raw_pred = self.predict_hate_speech(text, explain=explain)
+
+        try:
+            from app.ml.enrichment.enrichment_pipeline import enrich_prediction
+            enriched = enrich_prediction(text, raw_pred)
+        except Exception as exc:
+            logger.warning(f"Enrichment pipeline failed, returning raw prediction: {exc}")
+            enriched = {
+                "target_group": {"label": "None", "detail": None, "confidence": 0.0},
+                "harm_type": {"label": "None", "confidence": 0.0},
+                "severity": {
+                    "level": "MINIMAL",
+                    "score": 0.0,
+                    "recommended_action": "NO_ACTION",
+                },
+                "is_below_threshold": False,
+                "threshold_used": 0.0,
+            }
+
+        raw_pred["enriched"] = enriched
+        return raw_pred
+
     def predict_multimodal(
         self, image: Any, candidate_labels: Optional[List[str]] = None
     ) -> Optional[Dict[str, float]]:

@@ -771,6 +771,72 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                   <span className="text-xs text-slate-400">confidence score</span>
                 </div>
 
+                {/* Multi-Attribute Intelligence Panel (Milestone 1) */}
+                {analysisResult.enriched && (
+                  <div className="rounded-xl border border-indigo-200/50 dark:border-indigo-900/40 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                        <ShieldAlert className="w-4 h-4 text-indigo-500" />
+                        Multi-Attribute Intelligence
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          analysisResult.enriched.severity.level === 'CRITICAL'
+                            ? 'bg-rose-600 text-white'
+                            : analysisResult.enriched.severity.level === 'SEVERE'
+                            ? 'bg-orange-600 text-white'
+                            : analysisResult.enriched.severity.level === 'MODERATE'
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-emerald-600 text-white'
+                        }`}
+                      >
+                        {analysisResult.enriched.severity.level} ({Math.round(analysisResult.enriched.severity.score * 100)}%)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Target Group</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                          {analysisResult.enriched.target_group.label !== 'None'
+                            ? `🎯 ${analysisResult.enriched.target_group.label}`
+                            : 'None Detected'}
+                        </span>
+                        {analysisResult.enriched.target_group.detail && (
+                          <span className="text-[11px] text-indigo-500 dark:text-indigo-400 block mt-0.5">
+                            Subgroup: {analysisResult.enriched.target_group.detail}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-slate-400 block text-[10px] uppercase font-semibold">Harm Category</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                          {analysisResult.enriched.harm_type.label !== 'None'
+                            ? `⚠️ ${analysisResult.enriched.harm_type.label}`
+                            : 'No Explicit Harm'}
+                        </span>
+                        <span className="text-[11px] text-slate-400 block mt-0.5">
+                          Signal: {Math.round(analysisResult.enriched.harm_type.confidence * 100)}%
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white/80 dark:bg-slate-900/70 border border-indigo-200/40 dark:border-indigo-800/40 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Recommended Action:</span>
+                      <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded text-[11px]">
+                        {analysisResult.enriched.severity.recommended_action.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+
+                    {analysisResult.enriched.is_below_threshold && (
+                      <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg border border-amber-200 dark:border-amber-900">
+                        ⚠️ Classifier confidence is below the calibrated threshold ({Math.round(analysisResult.enriched.threshold_used * 100)}%). Manual human verification is advised.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Probabilities Bar Chart */}
                 <div>
                   <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">

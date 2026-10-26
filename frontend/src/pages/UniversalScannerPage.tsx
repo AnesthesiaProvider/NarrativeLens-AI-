@@ -20,6 +20,23 @@ import { api } from '@/lib/api'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { StatusBadge } from '@/components/StatusBadge'
 
+interface TargetGroup {
+  label: string
+  detail: string | null
+  confidence: number
+}
+
+interface HarmType {
+  label: string
+  confidence: number
+}
+
+interface SeverityInfo {
+  level: string
+  score: number
+  recommended_action: string
+}
+
 interface ScannedItem {
   doc_id: string
   doc_type: string
@@ -35,6 +52,12 @@ interface ScannedItem {
   is_hate: boolean
   is_offensive: boolean
   explanation_tokens?: Array<{ token: string; score: number }>
+  // Multi-attribute enrichment
+  target_group?: TargetGroup | null
+  harm_type?: HarmType | null
+  severity?: SeverityInfo | null
+  is_below_threshold?: boolean
+  recommended_action?: string | null
   llm_reasoning?: {
     model?: string
     verdict?: string
@@ -435,6 +458,52 @@ export const UniversalScannerPage: React.FC = () => {
                     <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans whitespace-pre-wrap">
                       {item.text}
                     </p>
+
+                    {/* Multi-Attribute Enrichment Badges (Milestone 1) */}
+                    {(item.target_group || item.harm_type || item.severity) && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
+                        {item.severity && (
+                          <span
+                            className={`px-2 py-0.5 rounded-md font-semibold text-[10px] tracking-wide uppercase ${
+                              item.severity.level === 'CRITICAL'
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                : item.severity.level === 'SEVERE'
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                                : item.severity.level === 'MODERATE'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                : 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                            }`}
+                          >
+                            Severity: {item.severity.level} ({Math.round(item.severity.score * 100)}%)
+                          </span>
+                        )}
+
+                        {item.recommended_action && (
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono">
+                            Action: {item.recommended_action.replace(/_/g, ' ')}
+                          </span>
+                        )}
+
+                        {item.target_group && item.target_group.label !== 'None' && (
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/30 text-[10px]">
+                            🎯 Target: {item.target_group.label}
+                            {item.target_group.detail ? ` (${item.target_group.detail})` : ''}
+                          </span>
+                        )}
+
+                        {item.harm_type && item.harm_type.label !== 'None' && (
+                          <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[10px]">
+                            ⚠️ Harm: {item.harm_type.label}
+                          </span>
+                        )}
+
+                        {item.is_below_threshold && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] italic">
+                            Uncertain / Low Confidence
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Tokens / Explainability */}
                     {item.explanation_tokens && item.explanation_tokens.length > 0 && (
