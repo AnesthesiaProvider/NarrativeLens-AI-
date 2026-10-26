@@ -900,6 +900,35 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                       )}
                   </div>
                 )}
+
+                {/* Local Ollama LLM Context Arbiter Card (Milestone 2) */}
+                {analysisResult.llm_reasoning && (
+                  <div className="p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-700/40 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs">
+                        <Bot className="w-4 h-4 text-indigo-400" />
+                        <span>Ollama Context Arbiter ({analysisResult.llm_reasoning.model || 'llama3.2:3b'})</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px]">
+                        Verdict: {analysisResult.llm_reasoning.verdict}
+                      </span>
+                    </div>
+
+                    {analysisResult.llm_reasoning.targeted_group &&
+                      analysisResult.llm_reasoning.targeted_group !== 'None' && (
+                        <div className="text-[11px] text-slate-300">
+                          <span className="text-slate-400 font-medium">Target Demographic: </span>
+                          <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-semibold">
+                            {analysisResult.llm_reasoning.targeted_group}
+                          </span>
+                        </div>
+                      )}
+
+                    <p className="text-slate-200 text-xs leading-relaxed italic bg-slate-900/40 p-2.5 rounded-lg border border-indigo-900/30">
+                      "{analysisResult.llm_reasoning.explanation}"
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Human Feedback & Correction Card */}

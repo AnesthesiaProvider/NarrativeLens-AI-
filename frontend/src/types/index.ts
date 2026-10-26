@@ -127,6 +127,12 @@ export interface AnalysisResponse {
   }
   coordination_score?: number
   enriched?: EnrichedAnalysis | null
+  llm_reasoning?: {
+    model?: string
+    verdict?: string
+    targeted_group?: string
+    explanation?: string
+  } | null
 }
 
 export interface ModelStatus {

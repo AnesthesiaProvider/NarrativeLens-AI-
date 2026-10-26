@@ -29,6 +29,7 @@ from app.schemas.analysis import (
     VisionResults,
 )
 from app.schemas.enrichment import EnrichedAnalysis, HarmTypeResult, SeverityRating, TargetGroupResult
+from app.services.comment_hate_detector_service import comment_hate_detector_service
 from app.services.ocr_service import ocr_service
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,19 @@ async def analyze_text(payload: TextAnalysisRequest) -> TextAnalysisResponse:
                 f"Harm type: {ht_label}. Severity: {sv_level} → {sv_action}."
             )
 
+    # Ollama LLM Context Arbiter (Milestone 2)
+    # Trigger contextual reasoning if content is flagged or below calibrated confidence
+    llm_reasoning: Optional[Dict[str, Any]] = None
+    if std_label in ("Hate Speech", "Offensive") or (enriched_obj and enriched_obj.is_below_threshold):
+        try:
+            llm_reasoning = await comment_hate_detector_service.explain_with_local_llm(
+                context_title="Direct Text Audit",
+                text=cleaned_text[:512],
+                initial_label=std_label,
+            )
+        except Exception as exc:
+            logger.debug(f"Ollama arbiter call failed: {exc}")
+
     classification_detail = ClassificationDetail(
         label=std_label,
         confidence=confidence,
@@ -174,6 +188,7 @@ async def analyze_text(payload: TextAnalysisRequest) -> TextAnalysisResponse:
         processed_at=datetime.now(timezone.utc),
         created_at=datetime.now(timezone.utc).isoformat(),
         enriched=enriched_obj,
+        llm_reasoning=llm_reasoning,
     )
 
 

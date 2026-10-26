@@ -84,6 +84,10 @@ class TextAnalysisResponse(BaseModel):
             "and calibrated confidence threshold result."
         ),
     )
+    llm_reasoning: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Qualitative contextual rationale and identity analysis from local Ollama LLM arbiter.",
+    )
 
 
 class BatchItemRequest(BaseModel):
