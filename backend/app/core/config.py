@@ -76,9 +76,10 @@ class Settings(BaseSettings):
     REDDIT_CLIENT_SECRET: Optional[str] = None
     REDDIT_USER_AGENT: str = "NarrativeLens:v1.0 (by /u/NarrativeLensAI)"
 
-    # Telegram API — get credentials at https://my.telegram.org
+    # Telegram API — get credentials at https://my.telegram.org or via @BotFather
     TELEGRAM_API_ID: Optional[str] = None
     TELEGRAM_API_HASH: Optional[str] = None
+    TELEGRAM_BOT_TOKEN: Optional[str] = None
 
     # Local LLM Context Arbiter (Ollama)
     OLLAMA_BASE_URL: str = "http://localhost:11434"

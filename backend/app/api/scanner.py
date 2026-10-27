@@ -102,6 +102,7 @@ class UniversalScanResponse(BaseModel):
     # LLM info
     llm_active: bool = False
     llm_model: Optional[str] = None
+    executive_explanation: Optional[Dict[str, Any]] = None
 
     # Results
     flagged_items: List[ScannedItemResult]
@@ -152,6 +153,58 @@ def _classify_text(text: str) -> Dict[str, Any]:
 async def _llm_enrich(title: str, text: str, label: str) -> Optional[Dict[str, Any]]:
     """Call Ollama LLM for contextual reasoning on flagged items."""
     return await _detector.explain_with_local_llm(title, text, label)
+
+
+async def _explain_page_with_llm(
+    title: str,
+    text: str,
+    total_items: int,
+    hate_count: int,
+    offensive_count: int,
+) -> Optional[Dict[str, Any]]:
+    """Generate an executive summary and rhetorical breakdown of the extracted page using Ollama LLaMA."""
+    from app.core.config import settings
+
+    if not getattr(settings, "ENABLE_LLM_CONTEXT_ARBITER", True):
+        return None
+
+    base_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    model_name = getattr(settings, "OLLAMA_MODEL", "llama3.2:3b")
+
+    prompt = (
+        f"You are an expert NLP safety and narrative intelligence analyst.\n"
+        f"Title / Context: \"{title}\"\n"
+        f"Extracted Page Content: \"{text[:1800]}\"\n"
+        f"Metrics: Scanned {total_items} segments, detected {hate_count} hate speech flags and {offensive_count} offensive flags.\n\n"
+        "Task: Explain this page in depth. Return a JSON object with this exact structure:\n"
+        "{\n"
+        "  \"summary\": \"2-3 clear sentences summarizing the core message or topic of the extracted page.\",\n"
+        "  \"narrative_stance\": \"Analysis of the author's narrative, tone, and rhetorical framing.\",\n"
+        "  \"targeted_groups\": \"Identity or demographic groups discussed, criticized, or targeted (or 'None').\",\n"
+        "  \"hate_speech_verdict\": \"Final assessment on whether this page contains targeted hate speech, general profanity, or safe free expression.\"\n"
+        "}"
+    )
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            resp = await client.post(
+                f"{base_url}/api/generate",
+                json={
+                    "model": model_name,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                },
+            )
+            if resp.status_code == 200:
+                raw_out = resp.json().get("response", "")
+                parsed = json.loads(raw_out)
+                parsed["model"] = model_name
+                return parsed
+    except Exception as exc:
+        logger.debug(f"Page-level Ollama explanation skipped: {exc}")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +386,25 @@ async def universal_scan(payload: UniversalScanRequest) -> UniversalScanResponse
         except Exception:
             pass
 
+    # 3b. Page-level executive LLaMA explanation
+    page_text_sample = "\n\n".join(
+        f"[{d.doc_type.upper()}] {d.title + ': ' if d.title else ''}{d.text}"
+        for d in scraped.documents[:6]
+    )
+    exec_explanation = None
+    try:
+        exec_explanation = await _explain_page_with_llm(
+            title=context_title,
+            text=page_text_sample,
+            total_items=len(results),
+            hate_count=hate_count,
+            offensive_count=offensive_count,
+        )
+        if exec_explanation:
+            llm_active = True
+    except Exception as exc:
+        logger.debug(f"Executive page explanation error: {exc}")
+
     analysis_duration = time.perf_counter() - analysis_start
 
     # 4. Build advisory
@@ -395,6 +467,7 @@ async def universal_scan(payload: UniversalScanRequest) -> UniversalScanResponse
         advisories=advisories,
         llm_active=llm_active,
         llm_model=getattr(settings, "OLLAMA_MODEL", None) if llm_active else None,
+        executive_explanation=exec_explanation,
         flagged_items=flagged,
         all_items=results,
         scrape_duration_seconds=round(scrape_duration, 2),

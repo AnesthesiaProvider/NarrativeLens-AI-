@@ -88,6 +88,13 @@ interface ScanResponse {
   advisories: string[]
   llm_active: boolean
   llm_model?: string
+  executive_explanation?: {
+    model?: string
+    summary?: string
+    narrative_stance?: string
+    targeted_groups?: string
+    hate_speech_verdict?: string
+  }
   flagged_items: ScannedItem[]
   all_items: ScannedItem[]
   scrape_duration_seconds: number
@@ -365,6 +372,61 @@ export const UniversalScannerPage: React.FC = () => {
               <span className="text-[11px] text-slate-500">safe discussions</span>
             </div>
           </div>
+
+          {/* Executive Page Explanation by LLaMA */}
+          {result.executive_explanation && (
+            <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800/80 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 dark:from-indigo-950/40 dark:via-slate-900/90 dark:to-purple-950/30 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-indigo-100 dark:border-indigo-800/60">
+                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 font-bold text-sm">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  <span>Executive Content & Narrative Intelligence</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 font-mono font-normal">
+                    {result.executive_explanation.model || 'llama3.2:3b'}
+                  </span>
+                </div>
+                {result.executive_explanation.hate_speech_verdict && (
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-xs">
+                    Verdict: {result.executive_explanation.hate_speech_verdict}
+                  </span>
+                )}
+              </div>
+
+              {result.executive_explanation.summary && (
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Executive Summary
+                  </span>
+                  <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans">
+                    {result.executive_explanation.summary}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 text-xs">
+                {result.executive_explanation.narrative_stance && (
+                  <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                      Narrative Stance & Rhetoric
+                    </span>
+                    <p className="text-slate-700 dark:text-slate-300">
+                      {result.executive_explanation.narrative_stance}
+                    </p>
+                  </div>
+                )}
+
+                {result.executive_explanation.targeted_groups && (
+                  <div className="p-3.5 rounded-xl bg-white/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-1">
+                    <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                      Targeted Identity / Demographics
+                    </span>
+                    <p className="text-slate-700 dark:text-slate-300 font-medium">
+                      {result.executive_explanation.targeted_groups}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Items Section */}
           <div className="space-y-4">
