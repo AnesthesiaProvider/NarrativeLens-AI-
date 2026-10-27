@@ -506,6 +506,66 @@ class ModelManager:
             "is_available": False,
         }
 
+    def predict_hate_speech_batch(
+        self, texts: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Run batch inference on multiple texts simultaneously for high-throughput pipeline execution."""
+        if not texts:
+            return []
+
+        model = self.get_model("hate_speech")
+        tokenizer = self.get_tokenizer("hate_speech")
+
+        if model is not None and tokenizer is not None:
+            try:
+                import torch
+
+                clean_texts = [t[:512] if t and t.strip() else "neutral text" for t in texts]
+                inputs = tokenizer(
+                    clean_texts,
+                    return_tensors="pt",
+                    truncation=True,
+                    max_length=settings.MAX_SEQUENCE_LENGTH,
+                    padding=True,
+                )
+                inputs = {k: v.to(self.device_str) for k, v in inputs.items()}
+
+                with torch.no_grad():
+                    outputs = model(**inputs)
+                    probs_tensor = torch.nn.functional.softmax(outputs.logits, dim=-1).cpu().numpy()
+
+                raw_id2label = getattr(model.config, "id2label", None)
+                if not raw_id2label or any("LABEL_" in str(v) for v in raw_id2label.values()):
+                    id2label = {i: lbl for i, lbl in enumerate(settings.CLASSIFIER_LABELS)}
+                else:
+                    id2label = {int(k): str(v) for k, v in raw_id2label.items()}
+
+                calibrated_thresholds = {"normal": 0.3306, "offensive": 0.3444, "hate": 0.3251}
+                results = []
+                for probs in probs_tensor:
+                    class_probs = {
+                        id2label.get(i, f"class_{i}"): round(float(prob), 4)
+                        for i, prob in enumerate(probs)
+                    }
+                    scaled_probs = {
+                        c: class_probs.get(c, 0.0) / max(calibrated_thresholds.get(c, 0.33), 0.01)
+                        for c in ["normal", "offensive", "hate"]
+                    }
+                    predicted_label = max(scaled_probs, key=scaled_probs.get)
+                    confidence = round(float(class_probs.get(predicted_label, max(probs))), 4)
+                    results.append({
+                        "predicted_label": predicted_label,
+                        "confidence": confidence,
+                        "class_probabilities": class_probs,
+                        "is_available": True,
+                    })
+                return results
+            except Exception as exc:
+                logger.warning(f"Error during hate speech batch inference: {exc}")
+
+        # Fallback to individual predictions if batch fails
+        return [self.predict_hate_speech(t) for t in texts]
+
 
     def predict_hate_speech_enriched(
         self, text: str, explain: bool = False

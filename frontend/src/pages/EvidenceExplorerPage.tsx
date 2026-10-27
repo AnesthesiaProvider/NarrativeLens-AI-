@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   FileSearch,
   Search,
@@ -20,7 +20,11 @@ import {
   Check,
   X,
   Info,
+  Clock,
+  History,
+  ShieldAlert,
 } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { StatusBadge } from '@/components/StatusBadge'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -29,23 +33,29 @@ import type { LiveNarrativeReport, GroundedClaim, ScrapedDocument } from '@/type
 
 const PRESET_QUERIES = [
   {
-    label: 'AI Slop & Corporate Tech Budgets',
-    query: 'AI slop corporate software budgets',
+    label: 'Renewable Grid Stability & Storage',
+    query: 'renewable energy solar wind power grid stability',
     url: '',
   },
   {
-    label: 'Election Ballot Machine Security',
+    label: 'Election Ballot Machine Security Audits',
     query: 'election tabulator machine cybersecurity audits',
     url: '',
   },
   {
-    label: 'Renewable Grid Power Blackout Controversy',
-    query: 'renewable energy solar wind power grid stability',
+    label: 'Corporate AI Software Budget ROI',
+    query: 'corporate AI software budgets ROI enterprise adoption',
+    url: '',
+  },
+  {
+    label: 'Rumor: Narendra Modi is Pregnant (Debunked)',
+    query: 'Narendra modi is pregnant',
     url: '',
   },
 ]
 
 export const EvidenceExplorerPage: React.FC = () => {
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [articleUrl, setArticleUrl] = useState('')
   const [isScraping, setIsScraping] = useState(false)
@@ -56,6 +66,44 @@ export const EvidenceExplorerPage: React.FC = () => {
   const [catalogSearch, setCatalogSearch] = useState('')
   const [verdictFilter, setVerdictFilter] = useState<string>('all')
   const [documentSourceTab, setDocumentSourceTab] = useState<'all' | 'newspaper' | 'social_media'>('all')
+
+  // Fetch saved / previously verified narrative reports
+  const { data: savedReports, refetch: refetchReports } = useQuery<any[]>({
+    queryKey: ['savedNarrativeReports'],
+    queryFn: async () => {
+      try {
+        const res = await api.get<any[]>('/narratives/reports')
+        return Array.isArray(res) ? res : []
+      } catch {
+        return []
+      }
+    },
+  })
+
+  // Load a previously saved narrative report from database
+  const handleLoadSavedReport = async (invId: string) => {
+    if (!invId) return
+    setIsScraping(true)
+    setScrapeError(null)
+
+    try {
+      const res = await api.get<LiveNarrativeReport>(`/narratives/reports/${invId}`)
+      setActiveReport(res)
+      setSearchQuery(res.query || '')
+    } catch (err: any) {
+      console.error('Failed to load saved report:', err)
+      setScrapeError(err?.message || 'Failed to load report from database.')
+    } finally {
+      setIsScraping(false)
+    }
+  }
+
+  // Auto-load most recent report on initial mount if available
+  useEffect(() => {
+    if (!activeReport && savedReports && savedReports.length > 0 && !searchQuery) {
+      handleLoadSavedReport(savedReports[0].investigation_id)
+    }
+  }, [savedReports])
 
   const handleRunScraper = async (overrideQuery?: string, overrideUrl?: string) => {
     const q = overrideQuery !== undefined ? overrideQuery : searchQuery
@@ -76,6 +124,7 @@ export const EvidenceExplorerPage: React.FC = () => {
         max_items_per_source: 8,
       })
       setActiveReport(res)
+      refetchReports()
     } catch (err: any) {
       console.error('Narrative scraper error:', err)
       setScrapeError(err?.message || 'Failed to crawl news and social platforms. Please ensure the backend is active.')
@@ -91,7 +140,7 @@ export const EvidenceExplorerPage: React.FC = () => {
   }
 
   const filteredClaims = useMemo(() => {
-    if (!activeReport) return []
+    if (!activeReport || !activeReport.claims) return []
     return activeReport.claims.filter((c) => {
       const matchSearch =
         c.claim.toLowerCase().includes(catalogSearch.toLowerCase()) ||
@@ -102,7 +151,7 @@ export const EvidenceExplorerPage: React.FC = () => {
   }, [activeReport, catalogSearch, verdictFilter])
 
   const filteredDocuments = useMemo(() => {
-    if (!activeReport) return []
+    if (!activeReport || !activeReport.collected_documents) return []
     return activeReport.collected_documents.filter((doc) => {
       if (documentSourceTab === 'all') return true
       return doc.source_type === documentSourceTab
@@ -145,14 +194,37 @@ export const EvidenceExplorerPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-16">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-          <Globe className="w-6 h-6 text-indigo-500" />
-          Live Web Narrative Scraper & Truth Verification Engine
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Crawl mainstream newspapers, magazines, Reddit, and public forums to cross-examine online narratives and synthesize evidence-grounded truth results.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+            <Globe className="w-6 h-6 text-indigo-500" />
+            Live Web Narrative Scraper & Truth Verification Engine
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Crawl mainstream press, Reddit, HackerNews, and forums to cross-examine online narratives and evaluate evidence-grounded truth results.
+          </p>
+        </div>
+
+        {/* Previously Saved Reports Selector */}
+        {savedReports && savedReports.length > 0 && (
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <History className="w-4 h-4 text-slate-400" />
+            <select
+              value={activeReport?.investigation_id || ''}
+              onChange={(e) => handleLoadSavedReport(e.target.value)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-hidden max-w-xs truncate"
+            >
+              <option value="" disabled>
+                Select Past Verified Report...
+              </option>
+              {savedReports.map((r) => (
+                <option key={r.investigation_id} value={r.investigation_id}>
+                  {r.query} ({r.document_count} docs)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Scraper Input Console */}
@@ -161,16 +233,18 @@ export const EvidenceExplorerPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-indigo-500" />
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Cross-Platform Narrative Web Crawler
+              Cross-Platform Narrative Web Crawler & Ground Truth Engine
             </span>
           </div>
-          <span className="text-xs text-slate-400 font-mono">Sources: Google News • Reddit • HackerNews • Press</span>
+          <span className="text-xs text-slate-400 font-mono">
+            Sources: Google News • Reddit • HackerNews • Press • Forums
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
           <div className="md:col-span-6">
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Search Narrative / News Topic
+              Search Narrative / Claim / News Topic
             </label>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -212,7 +286,7 @@ export const EvidenceExplorerPage: React.FC = () => {
                 key={p.label}
                 type="button"
                 onClick={() => handlePresetClick(p)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 hover:bg-indigo-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
                 {p.label}
               </button>
@@ -228,7 +302,7 @@ export const EvidenceExplorerPage: React.FC = () => {
                   setActiveReport(null)
                   setScrapeError(null)
                 }}
-                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1"
+                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Clear
@@ -238,13 +312,9 @@ export const EvidenceExplorerPage: React.FC = () => {
             <button
               onClick={() => handleRunScraper()}
               disabled={isScraping || (!searchQuery.trim() && !articleUrl.trim())}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-sm transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
             >
-              {isScraping ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <Globe className="w-4 h-4" />
-              )}
+              {isScraping ? <LoadingSpinner size="sm" /> : <Globe className="w-4 h-4" />}
               <span>{isScraping ? 'Crawling Multi-Platforms...' : 'Scrape Web & Reveal True Results'}</span>
             </button>
           </div>
@@ -258,11 +328,18 @@ export const EvidenceExplorerPage: React.FC = () => {
         )}
       </div>
 
-      {/* Loading State */}
+      {/* Loading State with Step Pipeline */}
       {isScraping && (
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 text-center space-y-3">
-          <LoadingSpinner centered label="Crawling newspaper RSS feeds, Reddit discussions, and running XLM-RoBERTa hate speech model..." />
-          <p className="text-xs text-slate-400">Extracting article bodies, cross-referencing news claims against social posts...</p>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-10 text-center space-y-4">
+          <LoadingSpinner centered size="lg" />
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              Scraping Web & Executing Truth Verification Matrix...
+            </h4>
+            <p className="text-xs text-slate-400">
+              Querying Google News RSS, Reddit & HackerNews discussions • Evaluating XLM-RoBERTa toxicity • Semantic Predicate Corroboration
+            </p>
+          </div>
         </div>
       )}
 
@@ -281,13 +358,16 @@ export const EvidenceExplorerPage: React.FC = () => {
                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${vStyle.badge}`}>
                       {activeReport.verdict_summary.overall_status}
                     </span>
-                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                       Narrative Truth Verdict
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/80 dark:bg-slate-900/80 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                      Truth Engine 2.0 (Semantic Grounding)
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Corroboration Confidence:</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">Corroboration Score:</span>
                     <span className="text-lg font-extrabold text-slate-900 dark:text-white">
                       {Math.round(activeReport.verdict_summary.truth_score * 100)}%
                     </span>
@@ -326,7 +406,11 @@ export const EvidenceExplorerPage: React.FC = () => {
 
                   <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
                     <span className="text-slate-400 block mb-0.5">Social Hate Speech</span>
-                    <span className={`font-bold flex items-center gap-1.5 ${activeReport.toxicity_overview.hate_count > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                    <span
+                      className={`font-bold flex items-center gap-1.5 ${
+                        activeReport.toxicity_overview.hate_count > 0 ? 'text-rose-500' : 'text-emerald-500'
+                      }`}
+                    >
                       <Flame className="w-3.5 h-3.5" />
                       {activeReport.toxicity_overview.hate_count} toxic items
                     </span>
@@ -462,6 +546,7 @@ export const EvidenceExplorerPage: React.FC = () => {
                   <option value="verified">Verified Only</option>
                   <option value="debunked">Debunked Only</option>
                   <option value="unverified">Unverified Only</option>
+                  <option value="disputed">Disputed Only</option>
                 </select>
               </div>
             </div>
@@ -510,6 +595,24 @@ export const EvidenceExplorerPage: React.FC = () => {
                         ))}
                       </div>
                     )}
+
+                    {item.contradicting_sources && item.contradicting_sources.length > 0 && (
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700/60 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-rose-500 mr-1">Contradicting / Fact-Check Sources:</span>
+                        {item.contradicting_sources.map((s, sIdx) => (
+                          <a
+                            key={sIdx}
+                            href={s.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:border-rose-400"
+                          >
+                            <span className="truncate max-w-[160px]">{s.title || s.publisher}</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -534,21 +637,33 @@ export const EvidenceExplorerPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setDocumentSourceTab('all')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${documentSourceTab === 'all' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    documentSourceTab === 'all'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
                 >
                   All ({activeReport.collected_documents.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setDocumentSourceTab('newspaper')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${documentSourceTab === 'newspaper' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    documentSourceTab === 'newspaper'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
                 >
                   Press ({activeReport.sources_searched.newspapers})
                 </button>
                 <button
                   type="button"
                   onClick={() => setDocumentSourceTab('social_media')}
-                  className={`px-3 py-1.5 rounded-lg transition-colors ${documentSourceTab === 'social_media' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                    documentSourceTab === 'social_media'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
                 >
                   Social Media ({activeReport.sources_searched.social_media})
                 </button>
