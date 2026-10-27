@@ -169,14 +169,15 @@ async def _explain_page_with_llm(
         return None
 
     base_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-    model_name = getattr(settings, "OLLAMA_MODEL", "llama3.2:3b")
+    model_name = getattr(settings, "OLLAMA_MODEL", "qwen3:4b")
+    req_timeout = float(getattr(settings, "OLLAMA_TIMEOUT", 30.0))
 
     prompt = (
         f"You are an expert NLP safety and narrative intelligence analyst.\n"
         f"Title / Context: \"{title}\"\n"
         f"Extracted Page Content: \"{text[:1800]}\"\n"
         f"Metrics: Scanned {total_items} segments, detected {hate_count} hate speech flags and {offensive_count} offensive flags.\n\n"
-        "Task: Explain this page in depth. Return a JSON object with this exact structure:\n"
+        "Task: Conduct deep analytical reasoning on this content. Return a JSON object with this exact structure:\n"
         "{\n"
         "  \"summary\": \"2-3 clear sentences summarizing the core message or topic of the extracted page.\",\n"
         "  \"narrative_stance\": \"Analysis of the author's narrative, tone, and rhetorical framing.\",\n"
@@ -187,7 +188,8 @@ async def _explain_page_with_llm(
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        import re
+        async with httpx.AsyncClient(timeout=req_timeout) as client:
             resp = await client.post(
                 f"{base_url}/api/generate",
                 json={
@@ -195,13 +197,37 @@ async def _explain_page_with_llm(
                     "prompt": prompt,
                     "stream": False,
                     "format": "json",
+                    "options": {"temperature": 0.1, "num_predict": 700},
                 },
             )
             if resp.status_code == 200:
-                raw_out = resp.json().get("response", "")
-                parsed = json.loads(raw_out)
-                parsed["model"] = model_name
-                return parsed
+                data = resp.json()
+                raw_response = data.get("response", "").strip()
+                raw_thinking = data.get("thinking", "").strip()
+
+                parsed = {}
+                for candidate in (raw_response, raw_thinking):
+                    if not candidate:
+                        continue
+                    try:
+                        parsed = json.loads(candidate)
+                        if isinstance(parsed, dict) and "summary" in parsed:
+                            break
+                    except Exception:
+                        pass
+                    match = re.search(r"\{[\s\S]*?\}", candidate)
+                    if match:
+                        try:
+                            candidate_obj = json.loads(match.group(0))
+                            if isinstance(candidate_obj, dict) and "summary" in candidate_obj:
+                                parsed = candidate_obj
+                                break
+                        except Exception:
+                            pass
+
+                if parsed:
+                    parsed["model"] = model_name
+                    return parsed
     except Exception as exc:
         logger.debug(f"Page-level Ollama explanation skipped: {exc}")
     return None
@@ -426,7 +452,7 @@ async def universal_scan(payload: UniversalScanRequest) -> UniversalScanResponse
     if llm_active:
         from app.core.config import settings
         advisories.append(
-            f"🤖 Local LLM Context Arbiter Active ({getattr(settings, 'OLLAMA_MODEL', 'llama3.2:3b')}): "
+            f"🤖 Local LLM Context Arbiter Active ({getattr(settings, 'OLLAMA_MODEL', 'qwen3:4b')}): "
             f"Contextual nuance analyzed via Ollama."
         )
     advisories.append(f"📊 Scanned {total_scanned} items from {detected_platform} in {scrape_duration:.1f}s scrape + {analysis_duration:.1f}s analysis.")

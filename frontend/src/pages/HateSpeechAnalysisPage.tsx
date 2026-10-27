@@ -408,7 +408,7 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                     {ytResult.advisory?.llm_active && (
                       <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                         <Bot className="w-3 h-3" />
-                        LLM Arbiter: {ytResult.advisory?.llm_model || 'llama3.2:3b'}
+                        LLM Arbiter: {ytResult.advisory?.llm_model || 'qwen3:4b'}
                       </span>
                     )}
                     <span
@@ -907,7 +907,7 @@ export const HateSpeechAnalysisPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-indigo-400 font-semibold text-xs">
                         <Bot className="w-4 h-4 text-indigo-400" />
-                        <span>Ollama Context Arbiter ({analysisResult.llm_reasoning.model || 'llama3.2:3b'})</span>
+                        <span>Ollama Context Arbiter ({analysisResult.llm_reasoning.model || 'qwen3:4b'})</span>
                       </div>
                       <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px]">
                         Verdict: {analysisResult.llm_reasoning.verdict}

@@ -291,25 +291,26 @@ class CommentHateDetectorService:
     async def explain_with_local_llm(
         self, context_title: str, text: str, initial_label: str, client: Optional[httpx.AsyncClient] = None
     ) -> Optional[Dict[str, Any]]:
-        """Call local Ollama LLM to assess context, detect targeted groups, and write a human-readable explanation."""
+        """Call local Ollama LLM (e.g. Qwen3-4B / LLaMA) to assess context, detect targeted groups, and provide deep analytical reasoning."""
         if not getattr(settings, "ENABLE_LLM_CONTEXT_ARBITER", True):
             return None
 
         base_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-        model_name = getattr(settings, "OLLAMA_MODEL", "llama3.2:3b")
+        model_name = getattr(settings, "OLLAMA_MODEL", "qwen3:4b")
+        req_timeout = float(getattr(settings, "OLLAMA_TIMEOUT", 25.0))
 
         prompt = (
             f"You are an expert NLP safety analyst evaluating user comments in context of online content.\n"
             f"Context / Video Title: \"{context_title}\"\n"
             f"User Comment: \"{text}\"\n"
             f"Initial Model Flag: {initial_label}\n\n"
-            "Task: Analyze whether this is genuine hate speech (dehumanization, slurs, group incitement), "
+            "Task: Conduct a deep analytical assessment on whether this is genuine hate speech (dehumanization, slurs, group incitement), "
             "offensive speech (profanity, aggressive personal insults), or neutral/free expression in context.\n"
             "Respond ONLY with valid JSON in this exact structure:\n"
             "{\n"
             "  \"verdict\": \"Hate Speech\" or \"Offensive\" or \"Neutral\",\n"
             "  \"targeted_group\": \"name of targeted group or None\",\n"
-            "  \"explanation\": \"2 concise sentences explaining the context, sarcasm, or linguistic intent.\"\n"
+            "  \"explanation\": \"Deep analytical reasoning explaining the context, sarcasm, and linguistic intent.\"\n"
             "}"
         )
 
@@ -319,24 +320,57 @@ class CommentHateDetectorService:
                 "prompt": prompt,
                 "format": "json",
                 "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 150},
+                "options": {"temperature": 0.1, "num_predict": 600},
             }
             if client:
-                resp = await client.post(f"{base_url}/api/generate", json=req_payload, timeout=8.0)
+                resp = await client.post(f"{base_url}/api/generate", json=req_payload, timeout=req_timeout)
             else:
-                async with httpx.AsyncClient(timeout=8.0) as temp_client:
+                async with httpx.AsyncClient(timeout=req_timeout) as temp_client:
                     resp = await temp_client.post(f"{base_url}/api/generate", json=req_payload)
 
             if resp.status_code == 200:
-                raw_json = resp.json().get("response", "{}")
+                data = resp.json()
+                raw_response = data.get("response", "").strip()
+                raw_thinking = data.get("thinking", "").strip()
+
                 import json
-                parsed = json.loads(raw_json)
-                return {
-                    "model": model_name,
-                    "verdict": parsed.get("verdict", initial_label),
-                    "targeted_group": parsed.get("targeted_group", "None"),
-                    "explanation": parsed.get("explanation", ""),
-                }
+                import re
+
+                parsed = {}
+                # Try parsing response, then thinking, then regex extraction
+                for candidate in (raw_response, raw_thinking):
+                    if not candidate:
+                        continue
+                    try:
+                        parsed = json.loads(candidate)
+                        if isinstance(parsed, dict) and "verdict" in parsed:
+                            break
+                    except Exception:
+                        pass
+                    # Regex search for JSON block
+                    match = re.search(r"\{[\s\S]*?\}", candidate)
+                    if match:
+                        try:
+                            candidate_obj = json.loads(match.group(0))
+                            if isinstance(candidate_obj, dict) and "verdict" in candidate_obj:
+                                parsed = candidate_obj
+                                break
+                        except Exception:
+                            pass
+
+                if parsed:
+                    explanation = parsed.get("explanation", "").strip()
+                    # If explanation was brief but thinking has rich analysis, use thinking if helpful
+                    if not explanation and raw_thinking and not raw_thinking.startswith("{"):
+                        explanation = raw_thinking[:400]
+
+                    return {
+                        "model": model_name,
+                        "verdict": parsed.get("verdict", initial_label),
+                        "targeted_group": parsed.get("targeted_group", "None"),
+                        "explanation": explanation,
+                        "analytical_depth": "deep_reasoning" if "qwen" in model_name.lower() else "standard",
+                    }
         except Exception as exc:
             logger.debug(f"Ollama local LLM reasoning skipped ({exc})")
 
@@ -452,7 +486,7 @@ class CommentHateDetectorService:
 
         if llm_active:
             need_to_know_advisories.append(
-                f"🤖 Local LLM Context Arbiter Active ({getattr(settings, 'OLLAMA_MODEL', 'llama3.2:3b')}): Contextual nuance, identity targeting, and intent analyzed via Ollama."
+                f"🤖 Local LLM Context Arbiter Active ({getattr(settings, 'OLLAMA_MODEL', 'qwen3:4b')}): Contextual nuance, identity targeting, and intent analyzed via Ollama."
             )
 
         # Bullet 1: Title evaluation
@@ -531,7 +565,7 @@ class CommentHateDetectorService:
                 "risk_label": risk_label,
                 "risk_color": color,
                 "llm_active": llm_active,
-                "llm_model": getattr(settings, "OLLAMA_MODEL", "llama3.2:3b") if llm_active else None,
+                "llm_model": getattr(settings, "OLLAMA_MODEL", "qwen3:4b") if llm_active else None,
                 "what_you_need_to_know": need_to_know_advisories,
             },
             "flagged_comments": flagged_comments,

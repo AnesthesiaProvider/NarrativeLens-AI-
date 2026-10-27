@@ -377,22 +377,49 @@ class NarrativeScraperService:
             f"}}"
         )
 
+        model_name = getattr(settings, "OLLAMA_MODEL", "qwen3:4b")
+        base_url = getattr(settings, "OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+        timeout_val = float(getattr(settings, "OLLAMA_TIMEOUT", 15.0))
+
         try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
+            async with httpx.AsyncClient(timeout=timeout_val) as client:
                 res = await client.post(
-                    "http://127.0.0.1:11434/api/generate",
+                    f"{base_url}/api/generate",
                     json={
-                        "model": "llama3.2:3b",
+                        "model": model_name,
                         "prompt": prompt,
                         "format": "json",
                         "stream": False,
+                        "options": {"temperature": 0.1, "num_predict": 700},
                     },
                 )
                 if res.status_code == 200:
-                    raw_text = res.json().get("response", "")
-                    parsed = json.loads(raw_text)
-                    if "overall_status" in parsed and "claims" in parsed:
-                        logger.info("Successfully synthesized narrative truth via Ollama LLaMA 3.2.")
+                    data = res.json()
+                    raw_response = data.get("response", "").strip()
+                    raw_thinking = data.get("thinking", "").strip()
+
+                    parsed = {}
+                    for candidate in (raw_response, raw_thinking):
+                        if not candidate:
+                            continue
+                        try:
+                            parsed = json.loads(candidate)
+                            if isinstance(parsed, dict) and "overall_status" in parsed:
+                                break
+                        except Exception:
+                            pass
+                        match = re.search(r"\{[\s\S]*?\}", candidate)
+                        if match:
+                            try:
+                                candidate_obj = json.loads(match.group(0))
+                                if isinstance(candidate_obj, dict) and "overall_status" in candidate_obj:
+                                    parsed = candidate_obj
+                                    break
+                            except Exception:
+                                pass
+
+                    if parsed and "overall_status" in parsed and "claims" in parsed:
+                        logger.info(f"Successfully synthesized narrative truth via Ollama {model_name}.")
                         return parsed
         except Exception as e:
             logger.debug(f"LLM truth synthesis skipped (falling back to deterministic extractor): {e}")

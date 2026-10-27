@@ -82,8 +82,9 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: Optional[str] = None
 
     # Local LLM Context Arbiter (Ollama)
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "llama3.2:3b"
+    OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
+    OLLAMA_MODEL: str = "qwen3:4b"
+    OLLAMA_TIMEOUT: float = 35.0
     ENABLE_LLM_CONTEXT_ARBITER: bool = True
 
     # Security & SSRF Protection

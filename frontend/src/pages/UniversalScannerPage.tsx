@@ -373,7 +373,7 @@ export const UniversalScannerPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Executive Page Explanation by LLaMA */}
+          {/* Executive Content & Narrative Intelligence (Qwen3 / LLaMA) */}
           {result.executive_explanation && (
             <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800/80 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 dark:from-indigo-950/40 dark:via-slate-900/90 dark:to-purple-950/30 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-indigo-100 dark:border-indigo-800/60">
@@ -381,7 +381,7 @@ export const UniversalScannerPage: React.FC = () => {
                   <Sparkles className="w-4 h-4 text-indigo-500" />
                   <span>Executive Content & Narrative Intelligence</span>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 font-mono font-normal">
-                    {result.executive_explanation.model || 'llama3.2:3b'}
+                    {result.executive_explanation.model || 'qwen3:4b'}
                   </span>
                 </div>
                 {result.executive_explanation.hate_speech_verdict && (
