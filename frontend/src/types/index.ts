@@ -168,12 +168,43 @@ export interface CoordinationIndicator {
   id: string
   investigation_id?: string
   name: string
+  indicator_type?: string
   description: string
   score: number // 0 to 1
+  confidence?: number
   uncertainty: 'low' | 'medium' | 'high'
-  evidence: string[]
+  evidence: any
   detected_patterns: string[]
-  timestamp: string
+  involved_documents?: string[]
+  requires_review?: boolean
+  timestamp?: string
+}
+
+export interface CoordinationSummaryResponse {
+  investigation_id: string
+  indicators: CoordinationIndicator[]
+  total_indicators: number
+  overall_coordination_index: number
+  cluster_core_count: number
+  uncertainty_level: 'low' | 'medium' | 'high'
+  risk_level: string
+  has_unreviewed_indicators: boolean
+  graph?: {
+    nodes: Array<{
+      id: string
+      label: string
+      type: string
+      group: string
+      size: number
+      toxicity: number
+    }>
+    edges: Array<{
+      source: string
+      target: string
+      weight: number
+      relation: string
+    }>
+  }
 }
 
 export interface HumanFeedback {

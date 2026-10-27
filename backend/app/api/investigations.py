@@ -29,6 +29,7 @@ from app.schemas.investigation import (
     InvestigationUpdate,
 )
 from app.services.narrative_scraper_service import narrative_scraper_service
+from app.coordination.detector import CoordinationDetector
 
 logger = logging.getLogger(__name__)
 
@@ -263,6 +264,14 @@ async def _execute_pipeline_task(investigation_id: uuid.UUID, keywords: list[str
                     cluster_size=doc_count,
                 )
                 session.add(cluster)
+
+            # Run automated Coordinated Inauthentic Behavior (CIB) detection
+            try:
+                detector = CoordinationDetector(session)
+                await detector.analyze_investigation(investigation_id, persist=True)
+                logger.info(f"Coordinated behavior detection completed for investigation {investigation_id}.")
+            except Exception as coord_err:
+                logger.warning(f"Coordination detection non-fatal error: {coord_err}")
 
             # Mark investigation as active
             inv_stmt = select(Investigation).where(Investigation.id == investigation_id)
