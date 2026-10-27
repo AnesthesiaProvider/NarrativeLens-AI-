@@ -1,4 +1,4 @@
-export type InvestigationStatus = 'draft' | 'running' | 'active' | 'completed' | 'archived' | 'failed'
+export type InvestigationStatus = 'draft' | 'running' | 'processing' | 'active' | 'completed' | 'archived' | 'failed'
 
 // ---------------------------------------------------------------------------
 // Multi-attribute enrichment types (Milestone 1)

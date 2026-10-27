@@ -43,6 +43,10 @@ export function useInvestigation(id: string | undefined) {
       return await api.get<Investigation>(`/investigations/${id}`)
     },
     enabled: Boolean(id),
+    refetchInterval: (query) => {
+      const data = query.state.data
+      return data?.status === 'processing' ? 2000 : false
+    },
   })
 }
 

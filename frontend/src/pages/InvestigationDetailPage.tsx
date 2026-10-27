@@ -13,6 +13,7 @@ import {
   Search,
   Filter,
   CheckCircle,
+  RotateCw,
 } from 'lucide-react'
 import {
   useInvestigation,
@@ -37,9 +38,9 @@ import {
 
 export const InvestigationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
-  const { data: inv, isLoading, error, refetch } = useInvestigation(id)
-  const { data: documents, isLoading: isDocsLoading } = useInvestigationDocuments(id)
-  const { data: narratives, isLoading: isNarrativesLoading } = useInvestigationNarratives(id)
+  const { data: inv, isLoading, error, refetch: refetchInv } = useInvestigation(id)
+  const { data: documents, isLoading: isDocsLoading, refetch: refetchDocs } = useInvestigationDocuments(id)
+  const { data: narratives, isLoading: isNarrativesLoading, refetch: refetchNarratives } = useInvestigationNarratives(id)
   const runAnalysisMutation = useRunInvestigationAnalysis()
 
   const [activeTab, setActiveTab] = useState<'documents' | 'narratives' | 'timeline'>('documents')
@@ -62,7 +63,7 @@ export const InvestigationDetailPage: React.FC = () => {
         <ErrorDisplay
           title="Investigation not found"
           message={`Failed to fetch investigation #${id}. The item may have been removed or the server returned an error.`}
-          onRetry={refetch}
+          onRetry={refetchInv}
         />
       </div>
     )
@@ -75,18 +76,28 @@ export const InvestigationDetailPage: React.FC = () => {
       await runAnalysisMutation.mutateAsync(id)
       setAnalysisTriggered(true)
       const interval = setInterval(() => {
-        refetch()
-      }, 3000)
+        refetchInv()
+        refetchDocs()
+        refetchNarratives()
+      }, 2000)
       setTimeout(() => {
         clearInterval(interval)
         setAnalysisTriggered(false)
-        refetch()
-      }, 15000)
+        refetchInv()
+        refetchDocs()
+        refetchNarratives()
+      }, 20000)
     } catch (e: any) {
       console.error(e)
       setAnalysisError(e?.message || 'Failed to trigger pipeline analysis')
       setTimeout(() => setAnalysisError(null), 6000)
     }
+  }
+
+  const handleRefreshAll = () => {
+    refetchInv()
+    refetchDocs()
+    refetchNarratives()
   }
 
   const filteredDocs = (documents || []).filter((doc) => {
@@ -135,6 +146,14 @@ export const InvestigationDetailPage: React.FC = () => {
             </span>
           )}
           <button
+            onClick={handleRefreshAll}
+            title="Refresh documents and clusters"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium transition-colors"
+          >
+            <RotateCw className="w-4 h-4 text-slate-500" />
+            Refresh
+          </button>
+          <button
             onClick={handleRunAnalysis}
             disabled={runAnalysisMutation.isPending}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-xs transition-colors disabled:opacity-50"
@@ -144,6 +163,29 @@ export const InvestigationDetailPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Processing Banner if pipeline is active */}
+      {inv.status === 'processing' && (
+        <div className="rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/80 dark:bg-indigo-950/40 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <LoadingSpinner size="sm" />
+            <div>
+              <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+                Pipeline execution in progress...
+              </p>
+              <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80">
+                Scraping news headlines, social media posts, and running toxicity classification for "#{inv.keywords?.join(', ')}".
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleRefreshAll}
+            className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+          >
+            Check Now
+          </button>
+        </div>
+      )}
 
       {/* Summary Card */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-xs p-6">
