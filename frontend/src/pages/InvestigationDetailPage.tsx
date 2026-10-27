@@ -46,6 +46,7 @@ export const InvestigationDetailPage: React.FC = () => {
   const [docSearch, setDocSearch] = useState('')
   const [filterNeedsReview, setFilterNeedsReview] = useState(false)
   const [analysisTriggered, setAnalysisTriggered] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
 
   if (isLoading) {
     return (
@@ -69,12 +70,22 @@ export const InvestigationDetailPage: React.FC = () => {
 
   const handleRunAnalysis = async () => {
     if (!id) return
+    setAnalysisError(null)
     try {
       await runAnalysisMutation.mutateAsync(id)
       setAnalysisTriggered(true)
-      setTimeout(() => setAnalysisTriggered(false), 4000)
-    } catch (e) {
+      const interval = setInterval(() => {
+        refetch()
+      }, 3000)
+      setTimeout(() => {
+        clearInterval(interval)
+        setAnalysisTriggered(false)
+        refetch()
+      }, 15000)
+    } catch (e: any) {
       console.error(e)
+      setAnalysisError(e?.message || 'Failed to trigger pipeline analysis')
+      setTimeout(() => setAnalysisError(null), 6000)
     }
   }
 
@@ -112,9 +123,15 @@ export const InvestigationDetailPage: React.FC = () => {
 
         <div className="flex items-center gap-3">
           {analysisTriggered && (
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
               <CheckCircle className="w-3.5 h-3.5" />
-              Analysis queued
+              Pipeline started! Ingesting data...
+            </span>
+          )}
+          {analysisError && (
+            <span className="text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1 font-medium bg-rose-50 dark:bg-rose-950/60 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-800">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              {analysisError}
             </span>
           )}
           <button

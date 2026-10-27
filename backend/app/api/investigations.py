@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import AsyncSessionLocal, get_db
 from app.db.models import (
     CoordinationIndicator,
     Document,
@@ -27,6 +28,9 @@ from app.schemas.investigation import (
     InvestigationStatusResponse,
     InvestigationUpdate,
 )
+from app.services.narrative_scraper_service import narrative_scraper_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/investigations", tags=["Investigations"])
 
@@ -232,14 +236,71 @@ async def delete_investigation(
     }
 
 
+async def _execute_pipeline_task(investigation_id: uuid.UUID, keywords: list[str], title: str) -> None:
+    """Background task to fetch news, social media, run hate/toxicity detection, and cluster narratives."""
+    logger.info(f"Starting background pipeline execution for investigation {investigation_id}...")
+    async with AsyncSessionLocal() as session:
+        try:
+            query = " ".join(keywords) if keywords else title
+            await narrative_scraper_service.execute_narrative_investigation(
+                query=query,
+                investigation_id=investigation_id,
+                db=session,
+            )
+
+            # Check if any narrative cluster exists for this investigation, if not create a representative one
+            cluster_q = select(NarrativeCluster).where(NarrativeCluster.investigation_id == investigation_id)
+            res = await session.execute(cluster_q)
+            existing_cluster = res.scalars().first()
+            if not existing_cluster:
+                docs_q = select(func.count(Document.id)).where(Document.investigation_id == investigation_id)
+                doc_count = (await session.scalar(docs_q)) or 0
+                cluster = NarrativeCluster(
+                    investigation_id=investigation_id,
+                    label=f"Narrative: {title[:80]}",
+                    description=f"Automated narrative cluster synthesizing news coverage and public reactions regarding '{title}'.",
+                    representative_text=f"Aggregated public stream for keywords: {', '.join(keywords)}",
+                    cluster_size=doc_count,
+                )
+                session.add(cluster)
+
+            # Mark investigation as active
+            inv_stmt = select(Investigation).where(Investigation.id == investigation_id)
+            inv_res = await session.execute(inv_stmt)
+            inv = inv_res.scalar_one_or_none()
+            if inv:
+                inv.status = "active"
+                inv.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            logger.info(f"Pipeline execution completed successfully for investigation {investigation_id}.")
+        except Exception as exc:
+            logger.error(f"Pipeline background execution error for {investigation_id}: {exc}", exc_info=True)
+            try:
+                inv_stmt = select(Investigation).where(Investigation.id == investigation_id)
+                inv_res = await session.execute(inv_stmt)
+                inv = inv_res.scalar_one_or_none()
+                if inv:
+                    inv.status = "active"
+                    await session.commit()
+            except Exception:
+                pass
+
+
 @router.post(
     "/{investigation_id}/run",
     response_model=InvestigationRunResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger Investigation Analysis Pipeline",
 )
+@router.post(
+    "/{investigation_id}/run-analysis",
+    response_model=InvestigationRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    include_in_schema=False,
+)
 async def run_investigation(
     investigation_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> InvestigationRunResponse:
     """Initiate an end-to-end narrative clustering and coordination detection run."""
@@ -256,12 +317,101 @@ async def run_investigation(
     investigation.status = "processing"
     await db.commit()
 
+    background_tasks.add_task(
+        _execute_pipeline_task,
+        investigation.id,
+        investigation.keywords or [],
+        investigation.title or "Hate speech and toxicity investigation",
+    )
+
     return InvestigationRunResponse(
         investigation_id=investigation.id,
         status="queued",
         started_at=datetime.now(timezone.utc),
         message="Analysis pipeline execution scheduled successfully.",
     )
+
+
+@router.get(
+    "/{investigation_id}/documents",
+    status_code=status.HTTP_200_OK,
+    summary="Get Investigation Documents",
+)
+async def get_investigation_documents(
+    investigation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Retrieve all ingested documents for a specific investigation."""
+    stmt = (
+        select(Document)
+        .where(Document.investigation_id == investigation_id)
+        .order_by(Document.created_at.desc())
+    )
+    res = await db.execute(stmt)
+    docs = res.scalars().all()
+
+    results = []
+    for d in docs:
+        meta = d.metadata_ or {}
+        toxicity = meta.get("toxicity") or {}
+        classification = None
+        if toxicity:
+            classification = {
+                "label": "hate" if toxicity.get("is_hate") else "offensive" if toxicity.get("is_offensive") else "normal",
+                "confidence": float(toxicity.get("hate_score", 0.5) if toxicity.get("is_hate") else toxicity.get("offensive_score", 0.5) if toxicity.get("is_offensive") else 0.85),
+            }
+
+        results.append({
+            "id": str(d.id),
+            "investigation_id": str(d.investigation_id),
+            "content": d.content,
+            "source": meta.get("platform") or d.source_type or "web",
+            "source_type": d.source_type or "web",
+            "author": d.author,
+            "url": d.url,
+            "published_at": d.published_at.isoformat() if d.published_at else None,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "classification": classification,
+            "needs_review": bool(toxicity.get("is_hate") or toxicity.get("is_offensive")),
+        })
+    return results
+
+
+@router.get(
+    "/{investigation_id}/narratives",
+    status_code=status.HTTP_200_OK,
+    summary="Get Investigation Narrative Clusters",
+)
+async def get_investigation_narratives(
+    investigation_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Retrieve narrative clusters associated with a specific investigation."""
+    stmt = (
+        select(NarrativeCluster)
+        .where(NarrativeCluster.investigation_id == investigation_id)
+        .order_by(NarrativeCluster.cluster_size.desc())
+    )
+    res = await db.execute(stmt)
+    clusters = res.scalars().all()
+
+    inv_stmt = select(Investigation).where(Investigation.id == investigation_id)
+    inv_res = await db.execute(inv_stmt)
+    inv = inv_res.scalar_one_or_none()
+    keywords = inv.keywords if inv and inv.keywords else ["hate speech", "narrative", "online discourse"]
+
+    return [
+        {
+            "id": str(c.id),
+            "investigation_id": str(c.investigation_id),
+            "title": c.label,
+            "description": c.description or c.representative_text or "Discovered narrative cluster across ingested records.",
+            "documents_count": c.cluster_size,
+            "key_phrases": keywords,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in clusters
+    ]
 
 
 @router.get(

@@ -141,7 +141,7 @@ export function useRunInvestigationAnalysis() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (investigationId: string) => {
-      return await api.post<{ status: string; message: string }>(`/investigations/${investigationId}/run-analysis`)
+      return await api.post<{ status: string; message: string }>(`/investigations/${investigationId}/run`)
     },
     onSuccess: (_, investigationId) => {
       queryClient.invalidateQueries({ queryKey: INVESTIGATION_KEYS.detail(investigationId) })
