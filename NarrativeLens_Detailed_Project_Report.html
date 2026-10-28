@@ -6,7 +6,7 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
     
-    :root {{
+    :root {
       --primary: #4f46e5;
       --primary-dark: #3730a3;
       --secondary: #0ea5e9;
@@ -21,28 +21,28 @@
       --slate-100: #f1f5f9;
       --slate-50: #f8fafc;
       --text: #0f172a;
-    }}
+    }
 
-    * {{
+    * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-    }}
+    }
 
-    body {{
+    body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: var(--text);
       background-color: #cbd5e1;
       line-height: 1.55;
       font-size: 13px;
-    }}
+    }
 
-    .report-container {{
+    .report-container {
       max-width: 960px;
       margin: 20px auto;
-    }}
+    }
 
-    .page {{
+    .page {
       background: #ffffff;
       width: 100%;
       min-height: 1250px;
@@ -53,29 +53,29 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-    }}
+    }
 
-    @media print {{
-      body {{
+    @media print {
+      body {
         background: #ffffff;
-      }}
-      .report-container {{
+      }
+      .report-container {
         max-width: 100%;
         margin: 0;
-      }}
-      .page {{
+      }
+      .page {
         margin: 0;
         padding: 40px 45px;
         min-height: 100vh;
         box-shadow: none;
         page-break-after: always;
-      }}
-      .no-print {{
+      }
+      .no-print {
         display: none;
-      }}
-    }}
+      }
+    }
 
-    .page-header {{
+    .page-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -87,9 +87,9 @@
       font-weight: 600;
       letter-spacing: 0.05em;
       text-transform: uppercase;
-    }}
+    }
 
-    .page-footer {{
+    .page-footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -98,46 +98,46 @@
       margin-top: 24px;
       font-size: 10px;
       color: var(--slate-600);
-    }}
+    }
 
-    .page-content {{
+    .page-content {
       flex: 1;
-    }}
+    }
 
-    h1, h2, h3, h4 {{
+    h1, h2, h3, h4 {
       color: var(--dark);
       font-weight: 700;
       letter-spacing: -0.02em;
-    }}
+    }
 
-    h1 {{ font-size: 24px; line-height: 1.25; margin-bottom: 8px; }}
-    h2 {{ font-size: 18px; line-height: 1.35; margin-bottom: 12px; color: var(--primary); border-bottom: 2px solid var(--slate-100); padding-bottom: 4px; }}
-    h3 {{ font-size: 14px; line-height: 1.4; margin-top: 14px; margin-bottom: 6px; }}
+    h1 { font-size: 24px; line-height: 1.25; margin-bottom: 8px; }
+    h2 { font-size: 18px; line-height: 1.35; margin-bottom: 12px; color: var(--primary); border-bottom: 2px solid var(--slate-100); padding-bottom: 4px; }
+    h3 { font-size: 14px; line-height: 1.4; margin-top: 14px; margin-bottom: 6px; }
 
-    p {{
+    p {
       margin-bottom: 10px;
       color: #334155;
       text-align: justify;
-    }}
+    }
 
-    .lead {{
+    .lead {
       font-size: 14px;
       line-height: 1.6;
       color: #1e293b;
       font-weight: 400;
-    }}
+    }
 
     /* Cover Styling */
-    .cover-page {{
+    .cover-page {
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       text-align: center;
       padding: 80px 60px 40px;
       background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    }}
+    }
 
-    .badge {{
+    .badge {
       display: inline-block;
       padding: 4px 12px;
       background: #e0e7ff;
@@ -148,112 +148,112 @@
       letter-spacing: 0.05em;
       text-transform: uppercase;
       margin-bottom: 16px;
-    }}
+    }
 
-    .team-grid {{
+    .team-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       gap: 12px;
       margin: 30px 0;
       text-align: left;
-    }}
+    }
 
-    .team-card {{
+    .team-card {
       background: var(--slate-50);
       border: 1px solid var(--slate-200);
       border-radius: 8px;
       padding: 12px;
-    }}
+    }
 
-    .team-card.leader {{
+    .team-card.leader {
       border-color: var(--primary);
       background: #eef2ff;
-    }}
+    }
 
-    .team-name {{
+    .team-name {
       font-weight: 700;
       font-size: 12px;
       color: var(--dark);
       margin-bottom: 2px;
-    }}
+    }
 
-    .team-role {{
+    .team-role {
       font-size: 10px;
       color: var(--primary);
       font-weight: 600;
       margin-bottom: 6px;
-    }}
+    }
 
-    .team-desc {{
+    .team-desc {
       font-size: 9.5px;
       color: #64748b;
       line-height: 1.35;
-    }}
+    }
 
     /* Tables */
-    table {{
+    table {
       width: 100%;
       border-collapse: collapse;
       margin: 12px 0;
       font-size: 11px;
-    }}
+    }
 
-    th, td {{
+    th, td {
       padding: 7px 10px;
       border: 1px solid var(--slate-200);
       text-align: left;
-    }}
+    }
 
-    th {{
+    th {
       background: var(--slate-100);
       color: var(--dark);
       font-weight: 600;
-    }}
+    }
 
-    tr:nth-child(even) td {{
+    tr:nth-child(even) td {
       background: #fafafa;
-    }}
+    }
 
     /* Use Case Cards */
-    .use-case-card {{
+    .use-case-card {
       border-left: 3px solid var(--primary);
       background: var(--slate-50);
       padding: 10px 14px;
       margin-bottom: 10px;
       border-radius: 0 6px 6px 0;
-    }}
+    }
 
-    .use-case-title {{
+    .use-case-title {
       font-weight: 700;
       color: var(--dark);
       font-size: 12.5px;
       margin-bottom: 3px;
-    }}
+    }
 
     /* References */
-    .ref-item {{
+    .ref-item {
       margin-bottom: 9px;
       font-size: 10.5px;
       line-height: 1.45;
-    }}
+    }
 
-    .ref-num {{
+    .ref-num {
       font-weight: 700;
       color: var(--primary);
       margin-right: 4px;
-    }}
+    }
 
-    .ref-link {{
+    .ref-link {
       color: var(--primary);
       text-decoration: none;
       word-break: break-all;
-    }}
+    }
 
-    .ref-link:hover {{
+    .ref-link:hover {
       text-decoration: underline;
-    }}
+    }
 
-    .diagram-img {{
+    .diagram-img {
       width: 100%;
       max-height: 520px;
       object-fit: contain;
@@ -261,9 +261,9 @@
       border-radius: 8px;
       background: #fafafa;
       margin: 12px 0;
-    }}
+    }
 
-    .code-box {{
+    .code-box {
       background: #0f172a;
       color: #f8fafc;
       padding: 10px 14px;
@@ -273,15 +273,110 @@
       line-height: 1.4;
       margin: 10px 0;
       overflow-x: auto;
-    }}
+    }
+
+    /* Sticky Top Navigation Bar */
+    .sticky-nav {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      border-bottom: 1px solid #1e293b;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 8px #10b981;
+    }
+    .nav-sep {
+      color: #475569;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .nav-btn {
+      color: #94a3b8;
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #1e293b;
+      transition: all 0.15s ease;
+    }
+    .nav-btn:hover {
+      background: #4f46e5;
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .print-btn {
+      background: #4f46e5;
+      color: #ffffff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+      transition: all 0.15s ease;
+    }
+    .print-btn:hover {
+      background: #4338ca;
+      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+    }
   </style>
 </head>
 <body>
 
+<div class="sticky-nav no-print">
+  <div class="nav-brand">
+    <span class="nav-dot"></span>
+    <strong>NarrativeLens AI</strong>
+    <span class="nav-sep">|</span>
+    <span>Engineering Report (10 Pages)</span>
+  </div>
+  <div class="nav-links">
+    <a href="#page-1" class="nav-btn">P1</a>
+    <a href="#page-2" class="nav-btn">P2</a>
+    <a href="#page-3" class="nav-btn">P3</a>
+    <a href="#page-4" class="nav-btn">P4</a>
+    <a href="#page-5" class="nav-btn">P5</a>
+    <a href="#page-6" class="nav-btn">P6</a>
+    <a href="#page-7" class="nav-btn">P7</a>
+    <a href="#page-8" class="nav-btn">P8</a>
+    <a href="#page-9" class="nav-btn">P9</a>
+    <a href="#page-10" class="nav-btn">P10</a>
+    <button onclick="window.print()" class="print-btn">&#128438; Print / Save PDF</button>
+  </div>
+</div>
+
+
 <div class="report-container">
 
   <!-- ==================== PAGE 1: TITLE & EXECUTIVE SUMMARY ==================== -->
-  <div class="page cover-page">
+  <div class="page cover-page" id="page-1">
     <div class="page-header">
       <span>NarrativeLens AI Engineering Specification</span>
       <span>Document Release v2.4</span>
@@ -332,7 +427,7 @@
 
 
   <!-- ==================== PAGE 2: PROBLEM STATEMENT & LANDSCAPE ==================== -->
-  <div class="page">
+  <div class="page" id="page-2">
     <div class="page-header">
       <span>Section 1: Problem Formulation & Threat Landscape</span>
       <span>NarrativeLens AI Research</span>
@@ -384,7 +479,7 @@ Deficiency Matrix of Current Automated Moderation Systems:
 
 
   <!-- ==================== PAGE 3: REAL-WORLD USE CASES & INDUSTRIAL APPLICATIONS ==================== -->
-  <div class="page">
+  <div class="page" id="page-3">
     <div class="page-header">
       <span>Section 2: Real-World Use Cases & Industrial Impact</span>
       <span>NarrativeLens AI Research</span>
@@ -445,7 +540,7 @@ Deficiency Matrix of Current Automated Moderation Systems:
 
 
   <!-- ==================== PAGE 4: ARCHITECTURE DIAGRAM & END-TO-END FLOW ==================== -->
-  <div class="page">
+  <div class="page" id="page-4">
     <div class="page-header">
       <span>Section 3: System Architecture Specification</span>
       <span>NarrativeLens AI Research</span>
@@ -475,7 +570,7 @@ Deficiency Matrix of Current Automated Moderation Systems:
 
 
   <!-- ==================== PAGE 5: MULTI-ATTRIBUTE NLP & VISION SUBSYSTEM ==================== -->
-  <div class="page">
+  <div class="page" id="page-5">
     <div class="page-header">
       <span>Section 4: Multi-Attribute NLP & Multimodal Vision</span>
       <span>NarrativeLens AI Research</span>
@@ -545,7 +640,7 @@ Where optimal calibrated thresholds: tau_normal = 0.3306, tau_offensive = 0.3444
 
 
   <!-- ==================== PAGE 6: LOCAL LLM CONTEXT ARBITER (QWEN3:4B) ==================== -->
-  <div class="page">
+  <div class="page" id="page-6">
     <div class="page-header">
       <span>Section 5: Local LLM Context Arbiter (Qwen3:4b)</span>
       <span>NarrativeLens AI Research</span>
@@ -615,7 +710,7 @@ for candidate in candidates:
 
 
   <!-- ==================== PAGE 7: UNIVERSAL COLLECTION & SCRAPING ENGINE ==================== -->
-  <div class="page">
+  <div class="page" id="page-7">
     <div class="page-header">
       <span>Section 6: Universal Ingestion & Scraper Architecture</span>
       <span>NarrativeLens AI Research</span>
@@ -706,7 +801,7 @@ When https://www.reddit.com/r/{sub}/hot.json returns 403/429:
 
 
   <!-- ==================== PAGE 8: COORDINATION ANALYSIS & TRUTH VERIFICATION ==================== -->
-  <div class="page">
+  <div class="page" id="page-8">
     <div class="page-header">
       <span>Section 7: Coordination Analysis & Truth Verification</span>
       <span>NarrativeLens AI Research</span>
@@ -771,7 +866,7 @@ When https://www.reddit.com/r/{sub}/hot.json returns 403/429:
 
 
   <!-- ==================== PAGE 9: BENCHMARKS & EVALUATION ==================== -->
-  <div class="page">
+  <div class="page" id="page-9">
     <div class="page-header">
       <span>Section 8: Benchmarks, Evaluation & Performance</span>
       <span>NarrativeLens AI Research</span>
@@ -885,7 +980,7 @@ Key Architectural Accomplishments:
 
 
   <!-- ==================== PAGE 10: 20 ACADEMIC & TECHNICAL REFERENCES ==================== -->
-  <div class="page">
+  <div class="page" id="page-10">
     <div class="page-header">
       <span>Section 9: Academic & Technical References</span>
       <span>NarrativeLens AI Research</span>
