@@ -109,6 +109,7 @@ const PRESET_TARGETS = [
   { name: '4chan /news/ Catalog', value: 'news', platform: '4chan' },
   { name: 'Wikipedia: AI Ethics', value: 'https://en.wikipedia.org/wiki/Ethics_of_artificial_intelligence', platform: 'web' },
   { name: 'Reddit r/technology', value: 'r/technology', platform: 'reddit' },
+  { name: 'YouTube Video & Comments', value: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', platform: 'youtube' },
 ]
 
 export const UniversalScannerPage: React.FC = () => {
@@ -239,6 +240,7 @@ export const UniversalScannerPage: React.FC = () => {
                 <option value="">Auto-Detect</option>
                 <option value="4chan">4chan</option>
                 <option value="reddit">Reddit</option>
+                <option value="youtube">YouTube</option>
                 <option value="twitter">Twitter / X</option>
                 <option value="web">Web Article</option>
               </select>

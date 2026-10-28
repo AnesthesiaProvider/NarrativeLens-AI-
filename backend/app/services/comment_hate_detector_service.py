@@ -236,7 +236,7 @@ class CommentHateDetectorService:
             }
 
         try:
-            pred = model_manager.predict_hate_speech(text[:512], explain=True)
+            pred = model_manager.predict_hate_speech(text[:512], explain=False)
             raw = pred.get("predicted_label", "normal").lower()
             conf = round(float(pred.get("confidence", 0.9)), 4)
 
@@ -256,18 +256,22 @@ class CommentHateDetectorService:
             # Extract top contributing tokens for explainability (only for flagged items)
             tokens = []
             if is_hate or is_offensive:
-                exp = pred.get("explanation", {})
-                if isinstance(exp, dict):
-                    features = exp.get("top_features") or exp.get("tokens") or []
-                    for item in features[:5]:
-                        if isinstance(item, dict):
-                            token_str = item.get("token") or item.get("text", "")
-                            score = item.get("score", 0.0)
-                        else:
-                            token_str = str(item)
-                            score = 0.5
-                        if token_str and not token_str.startswith("<") and not token_str.isspace():
-                            tokens.append({"token": token_str.strip(), "score": round(float(score), 3)})
+                try:
+                    exp_pred = model_manager.predict_hate_speech(text[:512], explain=True)
+                    exp = exp_pred.get("explanation", {})
+                    if isinstance(exp, dict):
+                        features = exp.get("top_features") or exp.get("tokens") or []
+                        for item in features[:5]:
+                            if isinstance(item, dict):
+                                token_str = item.get("token") or item.get("text", "")
+                                score = item.get("score", 0.0)
+                            else:
+                                token_str = str(item)
+                                score = 0.5
+                            if token_str and not token_str.startswith("<") and not token_str.isspace():
+                                tokens.append({"token": token_str.strip(), "score": round(float(score), 3)})
+                except Exception:
+                    pass
 
             return {
                 "label": label,

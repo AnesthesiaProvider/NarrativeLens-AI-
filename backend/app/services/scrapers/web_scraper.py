@@ -147,8 +147,11 @@ class WebScraper(BaseScraper):
                         image_urls.append(extracted.image)
 
                     if extracted.text:
-                        raw_paras = [_clean_article_text(p) for p in extracted.text.split("\n\n")]
-                        paragraphs = [p for p in raw_paras if len(p) >= 25]
+                        raw_paras = [_clean_article_text(p) for p in re.split(r"\n+", extracted.text)]
+                        paragraphs = [
+                            p for p in raw_paras
+                            if len(p) >= 40 and not p.startswith("|") and not p.lower().startswith("table of contents")
+                        ]
             except Exception as exc:
                 logger.debug(f"Trafilatura extraction skipped: {exc}")
 
@@ -163,7 +166,8 @@ class WebScraper(BaseScraper):
                 if art.top_image:
                     image_urls.append(art.top_image)
                 if not paragraphs and art.text:
-                    paragraphs = [p.strip() for p in art.text.split("\n\n") if len(p.strip()) >= 25]
+                    raw_paras = [_clean_article_text(p) for p in re.split(r"\n+", art.text)]
+                    paragraphs = [p for p in raw_paras if len(p) >= 40 and not p.startswith("|")]
             except Exception as exc:
                 logger.debug(f"Newspaper4k extraction skipped: {exc}")
 

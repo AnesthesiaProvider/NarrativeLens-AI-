@@ -168,7 +168,7 @@ async def _explain_page_with_llm(
     if not getattr(settings, "ENABLE_LLM_CONTEXT_ARBITER", True):
         return None
 
-    base_url = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    base_url = getattr(settings, "OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
     model_name = getattr(settings, "OLLAMA_MODEL", "qwen3:4b")
     req_timeout = float(getattr(settings, "OLLAMA_TIMEOUT", 30.0))
 
@@ -187,8 +187,9 @@ async def _explain_page_with_llm(
     )
 
     try:
-        import httpx
+        import json
         import re
+        import httpx
         async with httpx.AsyncClient(timeout=req_timeout) as client:
             resp = await client.post(
                 f"{base_url}/api/generate",
@@ -398,19 +399,26 @@ async def universal_scan(payload: UniversalScanRequest) -> UniversalScanResponse
         )
         results.append(item)
 
-    # 3. LLM enrichment on top flagged items
+    # 3. LLM enrichment on top flagged items (concurrent execution)
     flagged = [r for r in results if r.is_hate or r.is_offensive]
     flagged.sort(key=lambda x: (1 if x.is_hate else 0, x.confidence, x.score), reverse=True)
 
     llm_active = False
-    for item in flagged[:5]:
+
+    async def _enrich_item(item_to_enrich: ScannedItemResult):
         try:
-            llm_res = await _llm_enrich(context_title, item.text, item.label)
+            llm_res = await _llm_enrich(context_title, item_to_enrich.text, item_to_enrich.label)
             if llm_res:
-                item.llm_reasoning = llm_res
-                llm_active = True
+                item_to_enrich.llm_reasoning = llm_res
+                return True
         except Exception:
             pass
+        return False
+
+    if flagged:
+        enrich_results = await asyncio.gather(*[_enrich_item(it) for it in flagged[:2]], return_exceptions=True)
+        if any(r is True for r in enrich_results if not isinstance(r, Exception)):
+            llm_active = True
 
     # 3b. Page-level executive LLaMA explanation
     page_text_sample = "\n\n".join(

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+from bs4 import BeautifulSoup
 
 from app.core.config import settings
 from .base import BaseScraper, ScrapedContent, StandardDocument
@@ -201,18 +202,14 @@ class RedditScraper(BaseScraper):
                     target_type="thread",
                     errors=["Reddit post not found or removed (404)."],
                 )
-            if resp.status_code == 403:
-                return ScrapedContent(
-                    platform=self.PLATFORM_NAME,
-                    target=url,
-                    target_type="thread",
-                    errors=[
-                        "Reddit returned HTTP 403 Forbidden. Reddit blocks anonymous unauthenticated requests. "
-                        "Please configure free Reddit credentials at https://www.reddit.com/prefs/apps and add "
-                        "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to your backend/.env file."
-                    ],
-                )
+            if resp.status_code in (403, 429):
+                logger.info(f"Reddit thread JSON returned HTTP {resp.status_code}. Falling back to public RSS stream.")
+                return await self._scrape_rss_thread(client, url, max_items)
             if resp.status_code != 200:
+                logger.info(f"Reddit thread JSON returned HTTP {resp.status_code}. Trying RSS fallback.")
+                rss_res = await self._scrape_rss_thread(client, url, max_items)
+                if rss_res.documents or rss_res.main_document:
+                    return rss_res
                 return ScrapedContent(
                     platform=self.PLATFORM_NAME,
                     target=url,
@@ -221,6 +218,10 @@ class RedditScraper(BaseScraper):
                 )
             data = resp.json()
         except Exception as exc:
+            logger.info(f"Failed to fetch thread JSON: {exc}. Trying RSS fallback.")
+            rss_res = await self._scrape_rss_thread(client, url, max_items)
+            if rss_res.documents or rss_res.main_document:
+                return rss_res
             return ScrapedContent(
                 platform=self.PLATFORM_NAME,
                 target=url,
@@ -345,19 +346,14 @@ class RedditScraper(BaseScraper):
 
         try:
             resp = await client.get(api_url, timeout=12.0)
-            if resp.status_code == 403:
-                return ScrapedContent(
-                    platform=self.PLATFORM_NAME,
-                    target=f"r/{subreddit}",
-                    target_type="subreddit",
-                    errors=[
-                        f"Subreddit r/{subreddit} returned HTTP 403 Forbidden. "
-                        "Reddit blocks anonymous unauthenticated requests. "
-                        "Please configure free Reddit credentials at https://www.reddit.com/prefs/apps and add "
-                        "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to your backend/.env file."
-                    ],
-                )
+            if resp.status_code in (403, 429):
+                logger.info(f"Subreddit r/{subreddit} JSON returned HTTP {resp.status_code}. Falling back to public RSS.")
+                return await self._scrape_rss_subreddit(client, subreddit, max_items, download_images, max_images)
             if resp.status_code != 200:
+                logger.info(f"Subreddit r/{subreddit} JSON returned HTTP {resp.status_code}. Trying RSS fallback.")
+                rss_res = await self._scrape_rss_subreddit(client, subreddit, max_items, download_images, max_images)
+                if rss_res.documents:
+                    return rss_res
                 return ScrapedContent(
                     platform=self.PLATFORM_NAME,
                     target=f"r/{subreddit}",
@@ -366,6 +362,10 @@ class RedditScraper(BaseScraper):
                 )
             data = resp.json()
         except Exception as exc:
+            logger.info(f"Failed to fetch subreddit JSON: {exc}. Trying RSS fallback.")
+            rss_res = await self._scrape_rss_subreddit(client, subreddit, max_items, download_images, max_images)
+            if rss_res.documents:
+                return rss_res
             return ScrapedContent(
                 platform=self.PLATFORM_NAME,
                 target=f"r/{subreddit}",
@@ -422,6 +422,155 @@ class RedditScraper(BaseScraper):
                 "title": f"r/{subreddit} (Hot)",
                 "posts_count": len(docs),
             },
+        )
+
+    async def _scrape_rss_subreddit(
+        self,
+        client: httpx.AsyncClient,
+        subreddit: str,
+        max_items: int,
+        download_images: bool,
+        max_images: int,
+    ) -> ScrapedContent:
+        """Fallback to Reddit's public RSS feed when JSON endpoints are blocked."""
+        rss_url = f"https://www.reddit.com/r/{subreddit}/.rss"
+        try:
+            import feedparser
+            resp = await client.get(rss_url, timeout=12.0)
+            if resp.status_code == 200:
+                feed = feedparser.parse(resp.text)
+                docs: List[StandardDocument] = []
+                for entry in feed.entries[:max_items]:
+                    e_title = entry.get("title", "")
+                    e_author = entry.get("author", "[deleted]").replace("/u/", "")
+                    e_link = entry.get("link", "")
+                    summary_html = entry.get("summary", "")
+                    text = e_title
+                    if summary_html:
+                        soup = BeautifulSoup(summary_html, "html.parser")
+                        text_parts = [p.get_text(strip=True) for p in soup.find_all("p")]
+                        if text_parts:
+                            text = f"{e_title}\n" + " ".join(text_parts)
+
+                    docs.append(
+                        StandardDocument(
+                            source_platform=self.PLATFORM_NAME,
+                            source_url=e_link,
+                            doc_type="post",
+                            title=e_title,
+                            text=text,
+                            author=e_author,
+                            subreddit=subreddit,
+                            doc_id=f"reddit-rss-{hash(e_link) & 0xFFFFFFFF:x}",
+                        )
+                    )
+                if docs:
+                    return ScrapedContent(
+                        platform=self.PLATFORM_NAME,
+                        target=f"r/{subreddit}",
+                        target_type="subreddit",
+                        documents=docs,
+                        total_scraped=len(docs),
+                        source_metadata={
+                            "subreddit": subreddit,
+                            "source": "Reddit Public RSS (Verified Fallback)",
+                        },
+                    )
+        except Exception as exc:
+            logger.debug(f"Reddit RSS subreddit fallback failed: {exc}")
+
+        return ScrapedContent(
+            platform=self.PLATFORM_NAME,
+            target=f"r/{subreddit}",
+            target_type="subreddit",
+            errors=[
+                f"Subreddit r/{subreddit} returned HTTP 403 Forbidden. "
+                "Reddit blocks anonymous unauthenticated requests. "
+                "Please configure free Reddit credentials at https://www.reddit.com/prefs/apps and add "
+                "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to your backend/.env file."
+            ],
+        )
+
+    async def _scrape_rss_thread(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        max_items: int,
+    ) -> ScrapedContent:
+        """Fallback to Reddit's thread RSS feed when JSON endpoints are blocked."""
+        clean_url = url.rstrip("/")
+        if clean_url.endswith(".json"):
+            clean_url = clean_url[:-5]
+        rss_url = f"{clean_url}/.rss"
+        try:
+            import feedparser
+            resp = await client.get(rss_url, timeout=12.0)
+            if resp.status_code == 200:
+                feed = feedparser.parse(resp.text)
+                if feed.entries:
+                    op = feed.entries[0]
+                    op_title = op.get("title", "")
+                    op_author = op.get("author", "[deleted]").replace("/u/", "")
+                    op_link = op.get("link", clean_url)
+
+                    main_doc = StandardDocument(
+                        source_platform=self.PLATFORM_NAME,
+                        source_url=op_link,
+                        doc_type="post",
+                        title=op_title,
+                        text=op_title,
+                        author=op_author,
+                        doc_id=f"reddit-rss-op-{hash(op_link) & 0xFFFFFFFF:x}",
+                    )
+
+                    comment_docs: List[StandardDocument] = []
+                    for entry in feed.entries[1:max_items + 1]:
+                        c_title = entry.get("title", "")
+                        c_author = entry.get("author", "[deleted]").replace("/u/", "")
+                        c_link = entry.get("link", "")
+                        summary_html = entry.get("summary", "")
+                        c_text = c_title
+                        if summary_html:
+                            soup = BeautifulSoup(summary_html, "html.parser")
+                            body_parts = [p.get_text(strip=True) for p in soup.find_all("p")]
+                            if body_parts:
+                                c_text = " ".join(body_parts)
+
+                        comment_docs.append(
+                            StandardDocument(
+                                source_platform=self.PLATFORM_NAME,
+                                source_url=c_link,
+                                doc_type="comment",
+                                text=c_text,
+                                author=c_author,
+                                doc_id=f"reddit-rss-c-{hash(c_link) & 0xFFFFFFFF:x}",
+                            )
+                        )
+                    return ScrapedContent(
+                        platform=self.PLATFORM_NAME,
+                        target=url,
+                        target_type="thread",
+                        main_document=main_doc,
+                        documents=comment_docs,
+                        total_scraped=1 + len(comment_docs),
+                        source_metadata={
+                            "title": op_title,
+                            "author": op_author,
+                            "source": "Reddit Public RSS (Verified Fallback)",
+                        },
+                    )
+        except Exception as exc:
+            logger.debug(f"Reddit RSS thread fallback failed: {exc}")
+
+        return ScrapedContent(
+            platform=self.PLATFORM_NAME,
+            target=url,
+            target_type="thread",
+            errors=[
+                "Reddit returned HTTP 403 Forbidden. Reddit blocks anonymous unauthenticated requests. "
+                "Please configure free Reddit credentials at https://www.reddit.com/prefs/apps and add "
+                "REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET to your backend/.env file."
+            ],
         )
 
     async def _parse_json_generic(

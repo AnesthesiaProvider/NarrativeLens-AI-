@@ -61,6 +61,13 @@ class UniversalScraper:
             logger.info("Web article scraper registered")
         except Exception as e:
             logger.warning(f"Web scraper not available: {e}")
+
+        try:
+            from .youtube_scraper import YouTubeScraper
+            self._scrapers["youtube"] = YouTubeScraper()
+            logger.info("YouTube scraper registered")
+        except Exception as e:
+            logger.warning(f"YouTube scraper not available: {e}")
     
     def detect_platform(self, target: str) -> str:
         """Detect which platform a target URL or shorthand belongs to."""
