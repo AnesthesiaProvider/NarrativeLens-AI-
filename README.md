@@ -1,13 +1,28 @@
 # NarrativeLens AI 🔍🛡️
 
-> **Multilingual, Multimodal Hate Speech & Toxic Narrative Detection with Grounded Counter-Narrative Generation**
+> **Multilingual, Multimodal Hate Speech & Toxic Narrative Detection with Grounded Counter-Narrative Generation & Civil Unrest Forecasting**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react)](https://react.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker)](https://www.docker.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20pgvector-336791.svg?logo=postgresql)](https://github.com/pgvector/pgvector)
+[![Team: Toofani](https://img.shields.io/badge/Team-Toofani%20(PE--B65--50)-orange.svg)](#-team--project-metadata)
+
+---
+
+## 👥 Team & Project Metadata
+
+* **Team Name**: **Toofani**
+* **Team ID**: **PE-B65-50**
+* **Project Title**: **NarrativeLens AI**
+* **Deliverable**: **Milestone 2 Technical Report** ([PDF](Toofani_TechnicalReport.pdf) | [HTML](Toofani_TechnicalReport.html))
+* **Team Roster**:
+  * **Ansh Sharma** (Project Lead) &bull; `S24CSEU2785`
+  * **Aditya Sharma** &bull; `S24CSEU2728`
+  * **Aryan Kumar** &bull; `S24CSEU2726`
+  * **Ananad Thakur** &bull; `S24CSEU2752`
+  * **Ashmit Bhatnagar** &bull; `S24CSEU2753`
 
 ---
 
@@ -28,6 +43,7 @@ Rather than treating toxic language as isolated keywords or purely binary classi
 - 🌍 **Universal Multi-Platform Scraping**: Direct auditing of live URLs and public threads across 4chan catalogs (`/pol/`, `/news/`), Reddit (PRAW), Twitter/X, and clean web news/Wikipedia articles with markdown-sanitized paragraph extraction.
 - 🖼️ **GPU-Accelerated Multimodal Meme OCR**: Integrated `EasyOCR` GPU pipeline extracting text overlays from memes and fusing with contextual hate classification and vision safety ratings.
 - 🎯 **Captum Integrated Gradients Explainability**: Token-level saliency attribution quantifying exact lexical triggers with mathematical gradients.
+- 🔥 **OSINT Civil Unrest Event Extraction & Forecasting**: Few-shot Chain-of-Thought (CoT) prompt engineering and statistical heuristics parsing noisy posts into structured events, actors, locations, assembly timelines, and tactical escalation indicators (see [Guide](docs/CIVIL_UNREST_FORECASTING_GUIDE.md)).
 - 🧬 **Dense Narrative Clustering**: High-dimensional semantic embeddings via `BAAI/bge-m3` combined with PostgreSQL `pgvector` HNSW indexing to uncover emergent narrative clusters and coordinated disinformation campaigns.
 - 💡 **Grounded Counter-Narrative Generation**: Retrieval-augmented generation (RAG) synthesizing evidence-backed, empathetic responses to defuse toxic rhetoric.
 - 🛡️ **Responsible AI & Governance**: Built-in PII scrubbing, annotator welfare safeguards, subgroup bias audits (BPSN/BNSP), and content-blurring moderator controls.
@@ -269,8 +285,11 @@ A template is provided in [`.env.example`](.env.example). Primary configurable p
 
 ---
 
-## 📖 In-Depth Documentation
+## 📖 In-Depth Documentation & Deliverables
 
+- 📄 **[Milestone 2 Technical Report (PDF)](Toofani_TechnicalReport.pdf)**: Formal 10-page submission report with 20 academic references and full architecture breakdown.
+- 🌐 **[Interactive Research Whitepaper (HTML)](Toofani_TechnicalReport.html)**: Standalone web study with live math rendering, KPI cards, and CIB graph visualizer.
+- 🔥 **[Civil Unrest Forecasting Guide](docs/CIVIL_UNREST_FORECASTING_GUIDE.md)**: Operational guide for prompt engineering, schema extraction, and OSINT forecasting.
 - 📐 [Architecture Deep Dive](docs/architecture.md): Component diagrams, sequence flows, and database schemas.
 - 🔬 [Methodology & Limitations](docs/methodology.md): Detailed problem formulation, taxonomy definitions, and edge cases.
 - 🔒 [Data Governance Policy](docs/data-governance.md): Anonymization, PII redaction, and annotator well-being protocols.
