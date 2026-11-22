@@ -18,6 +18,13 @@ import {
   Building,
   Target,
   ExternalLink,
+  Sliders,
+  Code,
+  PlusCircle,
+  Terminal,
+  FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
@@ -35,51 +42,46 @@ export const CivilUnrestForecastingPage: React.FC = () => {
   const [scenarios, setScenarios] = useState<CivilUnrestScenario[]>([])
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null)
   
+  // Dynamic Prompt & Model Engineering Controls
+  const [showPromptSettings, setShowPromptSettings] = useState(false)
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [selectedModel, setSelectedModel] = useState('qwen3:4b')
+  const [customModelInput, setCustomModelInput] = useState('')
+  const [temperature, setTemperature] = useState(0.1)
+  const [customInstructions, setCustomInstructions] = useState('')
+  const [customSystemPrompt, setCustomSystemPrompt] = useState('')
+  
+  // Custom Scenario Creator Modal
+  const [showNewScenarioModal, setShowNewScenarioModal] = useState(false)
+  const [newScenarioTitle, setNewScenarioTitle] = useState('')
+  const [newScenarioCategory, setNewScenarioCategory] = useState('Protest / Assembly')
+  
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CivilUnrestAnalysisResult | null>(null)
-  const [activeTab, setActiveTab] = useState<'timeline' | 'actors' | 'tactics' | 'forecast'>('timeline')
+  const [activeTab, setActiveTab] = useState<'timeline' | 'actors' | 'tactics' | 'forecast' | 'prompt_inspector'>('timeline')
 
-  // Load sample scenarios on mount
+  // Load scenarios and available models from backend dynamically
   useEffect(() => {
-    async function loadScenarios() {
+    async function loadInitialData() {
       try {
-        const data = await api.get<CivilUnrestScenario[]>('/civil-unrest/scenarios')
-        setScenarios(data)
+        const scenarioData = await api.get<CivilUnrestScenario[]>('/civil-unrest/scenarios')
+        setScenarios(scenarioData)
       } catch (err) {
-        // Fallback default scenarios if API is unreachable
-        setScenarios([
-          {
-            id: 'scenario-1',
-            title: 'Metropolitan Transit Hub Blockade & Clash Risk',
-            category: 'Direct Action / Blockade',
-            platform: 'telegram',
-            author: '@MetroDirectAction',
-            location_hint: 'Chicago, IL',
-            text: '🚨 URGENT CALL TO ACTION: Everyone assemble at Central Station Plaza TOMORROW at 5:00 PM! We are shutting down the inbound train lines and blocking the Michigan Ave bridge. Bring umbrellas, eye wash (milk/saline), and laser pointers. No peace until the fare hikes are repealed. Cops are already mobilizing riot units, join our backup Signal group for live scout alerts! #MetroShutdown #OccupyTheTracks',
-          },
-          {
-            id: 'scenario-2',
-            title: 'General Labor Strike & Picket March',
-            category: 'Labor Action / Strike',
-            platform: 'twitter',
-            author: 'AlliedSanitationWorkers',
-            location_hint: 'Philadelphia, PA',
-            text: 'Sanitation & Transit Union members: The wildcat strike is ON starting this Friday at 6:00 AM outside City Hall. All municipal workers walk out. We will march down Broad Street to the Mayor\'s office. Keep it completely disciplined and non-violent, wear union vests and bring whistles. Stand united! #PhillyGeneralStrike',
-          },
-          {
-            id: 'scenario-3',
-            title: 'Emergency Curfew Defiance & Nocturnal Clashes',
-            category: 'Riot / Curfew Defiance',
-            platform: 'reddit',
-            author: 'NightOwl_88',
-            location_hint: 'Atlanta, GA',
-            text: 'They declared a 9 PM curfew thinking that would silence us?! Absolutely not. Defy the curfew tonight at 10 PM in front of the 4th Precinct. Bring respirators and makeshift shields, teargas canisters are already loaded on their tactical trucks. Block the exits with dumpsters and scooters. We aren\'t backing down tonight! 🔥',
-          },
-        ])
+        console.error('Failed to load scenarios:', err)
+      }
+
+      try {
+        const modelData = await api.get<string[]>('/civil-unrest/models')
+        setAvailableModels(modelData)
+        if (modelData.length > 0 && !modelData.includes(selectedModel)) {
+          setSelectedModel(modelData[0])
+        }
+      } catch (err) {
+        setAvailableModels(['qwen3:4b', 'llama3.1:8b', 'mistral:7b', 'OSINT-Dynamic-Heuristic-V2'])
       }
     }
-    loadScenarios()
+    loadInitialData()
   }, [])
 
   const handleSelectScenario = (scenario: CivilUnrestScenario) => {
@@ -105,12 +107,18 @@ export const CivilUnrestForecastingPage: React.FC = () => {
     setLoading(true)
     setError(null)
 
+    const modelToUse = customModelInput.trim() || selectedModel
+
     try {
       const data = await api.post<CivilUnrestAnalysisResult>('/civil-unrest/extract', {
         text: textToAnalyze,
         platform: plat,
         author: auth || undefined,
         location_hint: loc || undefined,
+        model: modelToUse || undefined,
+        temperature: temperature,
+        system_prompt: customSystemPrompt.trim() || undefined,
+        custom_prompt_instructions: customInstructions.trim() || undefined,
       })
       setResult(data)
     } catch (err: any) {
@@ -118,6 +126,31 @@ export const CivilUnrestForecastingPage: React.FC = () => {
       setError(err?.message || 'Failed to extract civil unrest signals. Ensure the backend server is online.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSaveCustomScenario = async () => {
+    if (!newScenarioTitle.trim() || !postText.trim()) {
+      alert('Please provide a title and post text to save a scenario.')
+      return
+    }
+    const newSc: CivilUnrestScenario = {
+      id: `custom-${Date.now()}`,
+      title: newScenarioTitle,
+      category: newScenarioCategory,
+      platform,
+      author: author || undefined,
+      location_hint: locationHint || undefined,
+      text: postText,
+    }
+    try {
+      await api.post('/civil-unrest/scenarios', newSc)
+      setScenarios([newSc, ...scenarios])
+      setShowNewScenarioModal(false)
+      setNewScenarioTitle('')
+      setSelectedScenarioId(newSc.id)
+    } catch (err: any) {
+      alert(`Failed to save scenario: ${err?.message || err}`)
     }
   }
 
@@ -150,7 +183,7 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               Civil Unrest & Escalation Forecasting
             </h1>
             <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
-              OSINT Event Extraction
+              Dynamic OSINT Extraction
             </span>
           </div>
           <p className="text-sm text-slate-600 dark:text-slate-400 max-w-3xl">
@@ -159,23 +192,137 @@ export const CivilUnrestForecastingPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Prompt Architecture: <strong>Few-Shot CoT</strong></span>
-          </div>
+          <button
+            onClick={() => setShowPromptSettings(!showPromptSettings)}
+            className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-xs transition-all"
+          >
+            <Sliders className="w-3.5 h-3.5 text-orange-500" />
+            <span>Prompt Engineering Controls</span>
+            {showPromptSettings ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
+          </button>
         </div>
       </div>
 
-      {/* Pre-loaded Scenarios Carousel */}
+      {/* Dynamic Prompt Engineering & Settings Drawer */}
+      {showPromptSettings && (
+        <div className="rounded-2xl border border-orange-500/30 bg-orange-500/5 dark:bg-orange-950/20 p-5 flex flex-col gap-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-orange-500/20 pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-orange-500" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Dynamic LLM Prompt Engineering & Model Architecture
+              </h3>
+            </div>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 font-mono">
+              Zero Hardcoding
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Model Selector */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Target Model (Ollama / Local / Custom)
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => {
+                  setSelectedModel(e.target.value)
+                  setCustomModelInput('')
+                }}
+                className="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+              >
+                {availableModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+                <option value="custom">Custom Model Name...</option>
+              </select>
+              {selectedModel === 'custom' && (
+                <input
+                  type="text"
+                  placeholder="e.g. qwen2.5:7b or mistral-large"
+                  value={customModelInput}
+                  onChange={(e) => setCustomModelInput(e.target.value)}
+                  className="mt-2 w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-slate-900 dark:text-white"
+                />
+              )}
+            </div>
+
+            {/* Temperature Slider */}
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Sampling Temperature
+                </label>
+                <span className="text-xs font-mono font-bold text-orange-600 dark:text-orange-400">
+                  {temperature}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.0"
+                max="1.0"
+                step="0.05"
+                value={temperature}
+                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                className="w-full accent-orange-500 cursor-pointer"
+              />
+              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                Low (0.0 - 0.2) = Strict deterministic schema; High = Exploratory reasoning.
+              </span>
+            </div>
+
+            {/* Custom Analyst Focus */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Special Intelligence Requirements (Custom Prompt Injection)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Focus on port logistics, bridges, and curfew defiance"
+                value={customInstructions}
+                onChange={(e) => setCustomInstructions(e.target.value)}
+                className="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+          </div>
+
+          {/* Custom System Prompt Override */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+              Custom System Prompt Override (Optional)
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Leave empty to use default Few-Shot OSINT Extraction prompt, or supply your custom extraction directive..."
+              value={customSystemPrompt}
+              onChange={(e) => setCustomSystemPrompt(e.target.value)}
+              className="w-full text-xs font-mono rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Scenario Carousel */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
             <Radio className="w-3.5 h-3.5 text-orange-500" />
-            Live OSINT Scenarios (One-Click Demonstrations)
+            Monitored OSINT Scenarios (Dynamic Catalog)
           </label>
-          <span className="text-xs text-slate-400">Click any scenario to load and extract intelligence</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowNewScenarioModal(true)}
+              className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Save Current as Scenario</span>
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {scenarios.map((sc) => (
             <button
               key={sc.id}
@@ -187,10 +334,10 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               }`}
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide">
+                <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase tracking-wide truncate mr-2">
                   {sc.category}
                 </span>
-                <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono shrink-0">
                   {sc.platform}
                 </span>
               </div>
@@ -274,9 +421,11 @@ export const CivilUnrestForecastingPage: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              Engineered with few-shot JSON schema extraction and resilient offline OSINT heuristic fallback.
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Active Model: <strong>{customModelInput.trim() || selectedModel}</strong> | Temp: <strong>{temperature}</strong>
+              </span>
+            </div>
             <button
               onClick={() => handleAnalyze()}
               disabled={loading || !postText.trim()}
@@ -416,10 +565,10 @@ export const CivilUnrestForecastingPage: React.FC = () => {
           {/* Interactive Intel Tabs */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 overflow-hidden shadow-xs">
             {/* Tab Navigation */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+            <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('timeline')}
-                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all ${
+                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'timeline'
                     ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-900'
                     : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -430,7 +579,7 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('actors')}
-                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all ${
+                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'actors'
                     ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-900'
                     : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -441,7 +590,7 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('tactics')}
-                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all ${
+                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'tactics'
                     ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-900'
                     : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -452,7 +601,7 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('forecast')}
-                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 transition-all ${
+                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
                   activeTab === 'forecast'
                     ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-900'
                     : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -460,6 +609,17 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               >
                 <TrendingUp className="w-4 h-4" />
                 <span>Predictive Forecast</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('prompt_inspector')}
+                className={`flex items-center gap-2 px-5 py-3.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-all ${
+                  activeTab === 'prompt_inspector'
+                    ? 'border-orange-500 text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-900'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Terminal className="w-4 h-4 text-orange-500" />
+                <span>Prompt & LLM Transparency</span>
               </button>
             </div>
 
@@ -541,7 +701,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               {/* Actors & Entities Tab */}
               {activeTab === 'actors' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Organizers */}
                   <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col gap-2.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-blue-500" />
@@ -560,7 +719,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Targets */}
                   <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col gap-2.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <Target className="w-3.5 h-3.5 text-red-500" />
@@ -579,7 +737,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Security Forces */}
                   <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col gap-2.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <Building className="w-3.5 h-3.5 text-purple-500" />
@@ -598,7 +755,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Demographics */}
                   <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col gap-2.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-emerald-500" />
@@ -623,7 +779,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
               {activeTab === 'tactics' && (
                 <div className="flex flex-col gap-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Weapons & Clash Risk */}
                     <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -642,7 +797,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                       </span>
                     </div>
 
-                    {/* Virality Velocity */}
                     <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -658,7 +812,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Protective Gear & Tactics */}
                   <div className="flex flex-col gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Protective Gear & Defensive Countermeasures Detected
@@ -676,7 +829,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Infrastructure Targeting */}
                   <div className="flex flex-col gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Critical Physical Infrastructure Targeted
@@ -694,7 +846,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Tactical Coordination Flags */}
                   {result.escalation.tactical_coordination_flags.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -741,7 +892,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Analytical Rationale */}
                   <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Strategic AI Reasoning
@@ -751,7 +901,6 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Recommended Interventions */}
                   <div className="flex flex-col gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       Recommended Public Safety & De-Escalation Playbook
@@ -769,6 +918,114 @@ export const CivilUnrestForecastingPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Prompt & LLM Transparency Inspector Tab */}
+              {activeTab === 'prompt_inspector' && (
+                <div className="flex flex-col gap-5">
+                  <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Terminal className="w-4 h-4 text-orange-500" />
+                        Prompt Engineering & Model Execution Trace
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Inspect the dynamic prompt sent to the LLM and its verbatim raw generation.
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      Model: {result.model_used}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-blue-500" />
+                      Dynamic Rendered Prompt Sent to Model
+                    </span>
+                    <pre className="p-3.5 rounded-xl bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto whitespace-pre-wrap border border-slate-800">
+                      {result.raw_prompt || 'Standard Few-Shot OSINT Extraction Prompt'}
+                    </pre>
+                  </div>
+
+                  {result.reasoning_tokens && (
+                    <div className="flex flex-col gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        Internal Chain-of-Thought Reasoning
+                      </span>
+                      <pre className="p-3.5 rounded-xl bg-amber-950/20 text-amber-300 text-xs font-mono overflow-x-auto whitespace-pre-wrap border border-amber-500/20">
+                        {result.reasoning_tokens}
+                      </pre>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Code className="w-3.5 h-3.5 text-emerald-500" />
+                      Verbatim Raw Model Response (JSON)
+                    </span>
+                    <pre className="p-3.5 rounded-xl bg-slate-900 text-emerald-400 text-xs font-mono overflow-x-auto whitespace-pre-wrap border border-slate-800">
+                      {result.raw_llm_response || JSON.stringify(result, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Custom Scenario Modal */}
+      {showNewScenarioModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl flex flex-col gap-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <PlusCircle className="w-5 h-5 text-orange-500" />
+              Save as Monitored OSINT Scenario
+            </h3>
+            <p className="text-xs text-slate-500">
+              Save this post into the dynamic scenario catalog for future evaluation, live testing, or demonstrations.
+            </p>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Scenario Title
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Port Terminal Stoppage & Highway Blockade"
+                value={newScenarioTitle}
+                onChange={(e) => setNewScenarioTitle(e.target.value)}
+                className="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Category
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Strike / Economic Blockade / Direct Action"
+                value={newScenarioCategory}
+                onChange={(e) => setNewScenarioCategory(e.target.value)}
+                className="w-full text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowNewScenarioModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCustomScenario}
+                className="px-4 py-2 rounded-xl text-xs font-medium bg-orange-600 hover:bg-orange-500 text-white shadow-sm"
+              >
+                Save Scenario
+              </button>
             </div>
           </div>
         </div>

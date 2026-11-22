@@ -125,6 +125,7 @@ torch_cache/
 # Datasets, Raw Data, and Media Uploads
 # ------------------------------------------------------------------------------
 data/
+!backend/app/data/
 datasets/raw/
 datasets/processed/
 ml/datasets/raw/

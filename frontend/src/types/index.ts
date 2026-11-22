@@ -386,6 +386,16 @@ export interface CivilUnrestAnalysisResult {
   prompt_technique: string
   raw_text_snippet: string
   confidence: number
+  raw_prompt?: string | null
+  raw_llm_response?: string | null
+  reasoning_tokens?: string | null
+}
+
+export interface CivilUnrestPromptConfig {
+  model?: string
+  temperature?: number
+  system_prompt?: string
+  custom_prompt_instructions?: string
 }
 
 export interface CivilUnrestScenario {
