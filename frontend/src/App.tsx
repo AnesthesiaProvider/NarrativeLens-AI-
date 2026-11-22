@@ -15,6 +15,7 @@ import { HateSpeechAnalysisPage } from '@/pages/HateSpeechAnalysisPage'
 import { NarrativeExplorerPage } from '@/pages/NarrativeExplorerPage'
 import { MemeAnalysisPage } from '@/pages/MemeAnalysisPage'
 import { UniversalScannerPage } from '@/pages/UniversalScannerPage'
+import { CivilUnrestForecastingPage } from '@/pages/CivilUnrestForecastingPage'
 import { CoordinationAnalysisPage } from '@/pages/CoordinationAnalysisPage'
 import { EvidenceExplorerPage } from '@/pages/EvidenceExplorerPage'
 import { ModelEvaluationPage } from '@/pages/ModelEvaluationPage'
@@ -49,6 +50,7 @@ export const App: React.FC = () => {
                 <Route path="analysis/text" element={<HateSpeechAnalysisPage />} />
                 <Route path="analysis/meme" element={<MemeAnalysisPage />} />
                 <Route path="scanner" element={<UniversalScannerPage />} />
+                <Route path="civil-unrest" element={<CivilUnrestForecastingPage />} />
                 <Route path="coordination" element={<CoordinationAnalysisPage />} />
                 <Route path="evidence" element={<EvidenceExplorerPage />} />
                 <Route path="evaluation" element={<ModelEvaluationPage />} />

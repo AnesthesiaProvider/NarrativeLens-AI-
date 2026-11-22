@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.analysis import analyze_router, router as analysis_router
+from app.api.civil_unrest import router as civil_unrest_router
 from app.api.coordination import router as coordination_router
 from app.api.evaluations import router as evaluations_router
 from app.api.feedback import router as feedback_router
@@ -17,6 +18,7 @@ api_router = APIRouter()
 # Include all sub-routers
 api_router.include_router(health_router)
 api_router.include_router(investigations_router)
+api_router.include_router(civil_unrest_router)
 api_router.include_router(analysis_router)
 api_router.include_router(analyze_router)
 api_router.include_router(scanner_router)

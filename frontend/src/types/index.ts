@@ -306,3 +306,94 @@ export interface LiveNarrativeReport {
   }
   analyzed_at: string
 }
+
+// ---------------------------------------------------------------------------
+// Civil Unrest Event Extraction & Escalation Forecasting Types
+// ---------------------------------------------------------------------------
+
+export type UnrestEventType =
+  | 'protest'
+  | 'riot'
+  | 'strike'
+  | 'blockade'
+  | 'march'
+  | 'counter_protest'
+  | 'boycott'
+  | 'clash'
+  | 'flashmob'
+  | 'curfew_defiance'
+  | 'civil_disobedience'
+  | 'unknown'
+
+export type UnrestTemporalStatus = 'imminent' | 'scheduled' | 'active' | 'historical' | 'unspecified'
+export type UnrestThreatLevel = 'low' | 'moderate' | 'high' | 'severe' | 'critical'
+export type UnrestMobilizationRadius = 'local' | 'citywide' | 'regional' | 'nationwide'
+
+export interface ExtractedActors {
+  organizers: string[]
+  targets: string[]
+  counter_actors: string[]
+  security_forces: string[]
+  demographics: string[]
+}
+
+export interface ExtractedLocation {
+  raw_location: string
+  landmark_or_venue?: string | null
+  city?: string | null
+  state_region?: string | null
+  country?: string | null
+  geo_specificity: 'high' | 'medium' | 'low'
+}
+
+export interface ExtractedTimeline {
+  raw_time_expression: string
+  normalized_target_time?: string | null
+  temporal_status: UnrestTemporalStatus
+  call_to_action: boolean
+  call_to_action_text?: string | null
+}
+
+export interface EscalationIndicators {
+  threat_level: UnrestThreatLevel
+  escalation_score: number
+  weapons_or_clash_risk: boolean
+  protective_gear_or_tactics: string[]
+  infrastructure_targeting: string[]
+  virality_velocity: 'low' | 'rising' | 'surging' | 'explosive'
+  tactical_coordination_flags: string[]
+}
+
+export interface UnrestForecast {
+  overall_unrest_probability: number
+  mobilization_radius: UnrestMobilizationRadius
+  predicted_peak_window: string
+  violence_propensity: number
+  recommended_interventions: string[]
+  analytical_rationale: string
+}
+
+export interface CivilUnrestAnalysisResult {
+  event_id: string
+  primary_event_type: UnrestEventType
+  event_summary: string
+  actors: ExtractedActors
+  location: ExtractedLocation
+  timeline: ExtractedTimeline
+  escalation: EscalationIndicators
+  forecast: UnrestForecast
+  model_used: string
+  prompt_technique: string
+  raw_text_snippet: string
+  confidence: number
+}
+
+export interface CivilUnrestScenario {
+  id: string
+  title: string
+  category: string
+  platform: string
+  author?: string
+  location_hint?: string
+  text: string
+}
