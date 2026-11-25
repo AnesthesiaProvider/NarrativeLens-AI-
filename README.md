@@ -7,22 +7,20 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg?logo=react)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker)](https://www.docker.com/)
-[![Team: Toofani](https://img.shields.io/badge/Team-Toofani%20(PE--B65--50)-orange.svg)](#-team--project-metadata)
+[![Milestone 2](https://img.shields.io/badge/Deliverable-Milestone%202%20Technical%20Report-blue.svg)](#-team--project-metadata)
 
 ---
 
 ## 👥 Team & Project Metadata
 
-* **Team Name**: **Toofani**
-* **Team ID**: **PE-B65-50**
 * **Project Title**: **NarrativeLens AI**
-* **Deliverable**: **Milestone 2 Technical Report** ([PDF](Toofani_TechnicalReport.pdf) | [HTML](Toofani_TechnicalReport.html))
+* **Deliverable**: **Milestone 2 Technical Report & Presentation** ([PDF](NarrativeLens_TechnicalReport.pdf) | [HTML](NarrativeLens_TechnicalReport.html) | [PPTX](NarrativeLens_Milestone2.pptx))
 * **Team Roster**:
-  * **Ansh Sharma** (Project Lead) &bull; `S24CSEU2785`
-  * **Aditya Sharma** &bull; `S24CSEU2728`
-  * **Aryan Kumar** &bull; `S24CSEU2726`
-  * **Ananad Thakur** &bull; `S24CSEU2752`
-  * **Ashmit Bhatnagar** &bull; `S24CSEU2753`
+  * **Ansh Sharma** (Leader) &bull; `S24CSEU2785`
+  * **Lovenish Kumar** &bull; `S24CSEU2788`
+  * **Amit Bhardwaj** &bull; `S24CSEU2799`
+  * **Aditya Rao** &bull; `S24CSEU2617`
+  * **Satyajeet** &bull; `S24CSEU2753`
 
 ---
 
@@ -287,8 +285,9 @@ A template is provided in [`.env.example`](.env.example). Primary configurable p
 
 ## 📖 In-Depth Documentation & Deliverables
 
-- 📄 **[Milestone 2 Technical Report (PDF)](Toofani_TechnicalReport.pdf)**: Formal 10-page submission report with 20 academic references and full architecture breakdown.
-- 🌐 **[Interactive Research Whitepaper (HTML)](Toofani_TechnicalReport.html)**: Standalone web study with live math rendering, KPI cards, and CIB graph visualizer.
+- 📄 **[Milestone 2 Technical Report (PDF)](NarrativeLens_TechnicalReport.pdf)**: Formal 10-page submission report with 20 academic references and full architecture breakdown.
+- 🌐 **[Interactive Research Whitepaper (HTML)](NarrativeLens_TechnicalReport.html)**: Standalone web study with live math rendering, KPI cards, and CIB graph visualizer.
+- 📊 **[Milestone 2 Presentation (PPTX)](NarrativeLens_Milestone2.pptx)**: Project pitch, architecture, prompt experiments, and demo slides.
 - 🔥 **[Civil Unrest Forecasting Guide](docs/CIVIL_UNREST_FORECASTING_GUIDE.md)**: Operational guide for prompt engineering, schema extraction, and OSINT forecasting.
 - 📐 [Architecture Deep Dive](docs/architecture.md): Component diagrams, sequence flows, and database schemas.
 - 🔬 [Methodology & Limitations](docs/methodology.md): Detailed problem formulation, taxonomy definitions, and edge cases.
