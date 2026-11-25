@@ -14,7 +14,7 @@
 ## 👥 Team & Project Metadata
 
 * **Project Title**: **NarrativeLens AI**
-* **Deliverable**: **Milestone 2 Technical Report & Presentation** ([PDF](NarrativeLens_TechnicalReport.pdf) | [HTML](NarrativeLens_TechnicalReport.html) | [PPTX](NarrativeLens_Milestone2.pptx))
+* **Deliverable**: **Milestone 2 Reports & Presentation** ([2-Page Report PDF](NarrativeLens_TwoPage_ProgressReport.pdf) | [10-Page Technical Report PDF](NarrativeLens_TechnicalReport.pdf) | [Interactive Whitepaper HTML](NarrativeLens_TechnicalReport.html) | [PPTX](NarrativeLens_Milestone2.pptx))
 * **Team Roster**:
   * **Ansh Sharma** (Leader) &bull; `S24CSEU2785`
   * **Lovenish Kumar** &bull; `S24CSEU2788`
@@ -285,6 +285,7 @@ A template is provided in [`.env.example`](.env.example). Primary configurable p
 
 ## 📖 In-Depth Documentation & Deliverables
 
+- 📋 **[Two-Page Progress Report (PDF)](NarrativeLens_TwoPage_ProgressReport.pdf)** ([HTML Sheet](NarrativeLens_TwoPage_ProgressReport.html)): Concise 2-page mandatory milestone report covering dataset stats, methodology, benchmarks, challenges, and future work.
 - 📄 **[Milestone 2 Technical Report (PDF)](NarrativeLens_TechnicalReport.pdf)**: Formal 10-page submission report with 20 academic references and full architecture breakdown.
 - 🌐 **[Interactive Research Whitepaper (HTML)](NarrativeLens_TechnicalReport.html)**: Standalone web study with live math rendering, KPI cards, and CIB graph visualizer.
 - 📊 **[Milestone 2 Presentation (PPTX)](NarrativeLens_Milestone2.pptx)**: Project pitch, architecture, prompt experiments, and demo slides.
